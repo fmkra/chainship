@@ -33,8 +33,4 @@ Zastosowanie blockchaina umożliwia właścicielowi kontraktów pobieranie prowi
 
 ### Brak centralnej kontroli
 
-Brak centralnego serwera oznacza, że nie ma jednego punktu awarii. Gra jest całkowicie rozproszona i działa na blockchainie, co oznacza, że nawet w przypadku problemów z infrastrukturą, gra nadal może funkcjonować, a dane pozostaną nienaruszone. To oznacza również mniejsze ryzyko ataków DDoS czy innych zagrożeń związanych z centralizowanymi systemami.
-
-## Podsumowanie
-
-Realizacja gry w statki na blockchainie ma ogromny potencjał, łącząc klasyczną rozrywkę z nowoczesną technologią, jaką jest Ethereum. Dzięki zastosowaniu technologii blockchain możliwe będzie zapewnienie bezpieczeństwa, transparentności oraz decentralizacji, co stanowi istotną przewagę nad tradycyjnymi grami online. Dodatkowo, mechanizmy prowizji i rozliczeń w oparciu o inteligentne kontrakty pozwolą na zautomatyzowaną, bezpieczną monetyzację projektu.
+Brak centralnego serwera oznacza, że nie ma jednego punktu awarii. Gra jest całkowicie rozproszona i działa na blockchainie, co oznacza, że nawet w przypadku problemów z infrastrukturą, gra nadal może funkcjonować, a dane pozostaną nienaruszone.
