@@ -13,19 +13,19 @@
 
 \section{Wprowadzenie}
 
-Projekt zakłada stworzenie aplikacji opartej na technologii blockchain, która umożliwi grę w statki pomiędzy dwoma graczami. Gra odbywać się będzie w pełni w przeglądarce, przy użyciu interface'u napisanego w JavaScriptcie i współpracy z portfelem Metamask. Aplikacja będzie wystawiona publicznie jako strona internetowa, jednak każdy użytkownik będzie mógł uruchomić ją lokalnie z pominięciem centralnego serwera, co zminimalizuje konieczność większego zaufania. Wszystkie działania związane z grą, takie jak utworzenie pokoju, przechowywanie danych o ustawieniu statków, strzały, wyniki gry, będą realizowane na kontraktach blockchainowych na Ethereum. Dzięki tej technologii możliwe będzie zapewnienie przejrzystości, bezpieczeństwa oraz decentralizacji całego procesu.
+Projekt zakłada stworzenie aplikacji umożliwiającej grę w statki, która wykorzystuje technologię blockchain do stworzenia bezpiecznego, transparentnego i wciągającego doświadczenia dla graczy. Wykorzystując JavaScript i integrację z portfelem Metamask, Chainship oferuje grę dostępną bezpośrednio w przeglądarce, z możliwością uruchomienia lokalnego, eliminując potrzebę zaufania scentralizowanemu serwerowi. Wszystkie aspekty gry – od tworzenia pokoju, przez ustawianie statków, po rejestrowanie strzałów i wyników – są zabezpieczone przez smart kontrakty działające na Ethereum. Chainship to nie tylko gra; to demonstracja przyszłości gamingu, gdzie uczciwość, decentralizacja i bezpieczeństwo są priorytetem.
 
 \section{Opis gry}
 
-Gra toczyć się będzie o pulę pieniężną, którą obaj gracze wpłacają przed rozpoczęciem rozgrywki. Zwycięzca otrzymuje całą pulę, z wyjątkiem opcjonalnej prowizji, którą może pobierać właściciel kontraktów.
+Gracze będą rywalizować o pulę pieniężną, wpłacaną przed rozpoczęciem rozgrywki, a zwycięzca zgarnia całą pulę (pomniejszoną o ewentualną prowizję dla właściciela kontraktów).
 
 Gra będzie odbywać się między dwoma graczami. Kluczowe elementy rozgrywki to:
 \begin{itemize}
-    \item Tworzenie pokoju gry: Jeden z graczy może stworzyć prywatny pokój, zapraszając drugiego gracza za pomocą linku. (opcjonalne) Inną opcją jest połączenie z losowym graczem na podstawie punktów rankingowych.
-    \item Faza ustawienia statków: Obaj gracze wybierają pola na planszy, na których umieszczą swoje statki. Ten etap będzie odbywać się w aplikacji w interfejsie graficznym.
-    \item Faza strzałów: Po ustawieniu statków gracze na przemian strzelają do pól na planszy przeciwnika. Wyniki strzałów będą natychmiastowo rejestrowane na blockchainie, a aplikacja przeglądarkowa będzie dostarczać użytkownikom aktualne dane o stanie gry.
-    \item Dowodzenie wygranej: Po zakończeniu gry, zwycięzca musi udowodnić, że poprawnie odpowiadał na pytania przeciwnika. Dopiero w tym momencie każdy z graczy zdradza jak wygląda jego plansza, co sprawia, że żaden z graczy nie może oszukiwać.
-    \item Ranking graczy: Aplikacja będzie prowadziła ranking najlepszych graczy, bazując na liczbie wygranych gier oraz wysokości ich wygranych. Ranking będzie widoczny dla wszystkich graczy i stanowił element rywalizacji.
+    \item \textbf{Tworzenie pokoju gry:} Gracze mogą tworzyć prywatne pokoje i zapraszać znajomych lub dołączać do losowych przeciwników na podstawie rankingu.
+    \item \textbf{Faza ustawienia statków:} Intuicyjny interfejs graficzny umożliwia graczom strategiczne rozmieszczanie statków na planszy.
+    \item \textbf{Faza Strzałów:} Gracze na przemian oddają strzały, a wyniki są natychmiast rejestrowane na blockchainie, zapewniając transparentność i eliminując oszustwa.
+    \item \textbf{Dowodzenie Wygranej:} Zwycięzca musi udowodnić poprawność swoich odpowiedzi, ujawniając swoją planszę dopiero po zakończeniu gry, co gwarantuje uczciwość rozgrywki.
+    \item \textbf{Ranking Graczy:} System rankingowy, oparty na wygranych grach i zdobytych nagrodach, dodaje element rywalizacji i prestiżu.
 \end{itemize}
 
 \section{Korzyści z realizacji projektu na blockchainie}
@@ -46,17 +46,18 @@ Zastosowanie blockchaina umożliwia właścicielowi kontraktów pobieranie prowi
 
 \section{Zalety projektu}
 
-Projekt posiada wiele mocnych stron, które przyciągają uwagę zarówno graczy, jak i inwestorów. Oto najważniejsze z nich:
+Chainship to projekt o ogromnym potencjale, który przyciągnie zarówno graczy, jak i inwestorów.
 
 \subsection{Innowacyjność}
 
-Połączenie klasycznej gry w statki z technologią blockchain sprawia, że projekt wyróżnia się na tle tradycyjnych gier online. Gracze mogą cieszyć się rozrywką, mając jednocześnie pewność, że ich dane są przechowywane w sposób bezpieczny, transparentny i dostępny.
+Połączenie klasycznej gry w statki z technologią blockchain sprawia, że projekt wyróżnia się na tle tradycyjnych gier online. To innowacyjne podejście pozwala graczom cieszyć się rozrywką, mając jednocześnie pewność, że ich dane są przechowywane w sposób bezpieczny i transparentny.
 
 \subsection{Rywalizacja}
 
 Ranking graczy i rywalizacja o pulę pieniężną tworzy elementy gier hazardowych, ale w bezpiecznej, transparentnej i zdecentralizowanej formie. To z pewnością przyciągnie osoby szukające nowych wyzwań oraz tych, którzy lubią rywalizować w grach online.
 
 \subsection{Potencjał na rynku blockchain}
+
 Z uwagi na rosnące zainteresowanie grami na blockchainie i decentralizacją, projekt ma duży potencjał na rynku. Gry oparte na blockchainie są coraz bardziej popularne, a ten projekt może przyciągnąć zarówno entuzjastów blockchaina, jak i miłośników klasycznych gier komputerowych.
 
 \subsection{Zautomatyzowana monetyzacja}
@@ -69,6 +70,6 @@ Projekt może być rozwijany o dodatkowe funkcjonalności, takie jak nowe rodzaj
 
 \section{Podsumowanie}
 
-Realizacja gry w statki na blockchainie ma ogromny potencjał, łącząc klasyczną rozrywkę z nowoczesną technologią. Dzięki zastosowaniu technologii blockchain możliwe będzie zapewnienie bezpieczeństwa, transparentności oraz decentralizacji, co stanowi istotną przewagę nad tradycyjnymi grami online.
+Chainship to przełomowa aplikacja, która łączy klasyczną rozrywkę z rewolucyjną technologią blockchain. To projekt, który ma potencjał zmienić sposób, w jaki myślimy o grach online, oferując bezpieczeństwo, transparentność i uczciwość, które są niemożliwe do osiągnięcia w tradycyjnych grach. Chainship to nie tylko gra – to inwestycja w przyszłość gamingu.
 
 \end{document}
