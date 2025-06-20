@@ -21,8 +21,10 @@ describe('Chainship', function () {
         return { roomId, privateKey }
     }
 
-    function getBoard() {
-        const boardStr = `
+    function getBoard(boardStr?: string) {
+        boardStr =
+            boardStr ??
+            `
             ###......#
             .........#
             .........#
@@ -36,6 +38,7 @@ describe('Chainship', function () {
         `
         const board = boardStr
             .split('\n')
+            .filter((row) => row.trim() !== '')
             .map((row) =>
                 row
                     .trim()
@@ -161,13 +164,38 @@ describe('Chainship', function () {
 
         it('verifyBoard', async function () {
             const { chainship } = await loadFixture(deployChainshipFixture)
-            const board = Array(100).fill(false)
-            board[2] = true
-            const randomness = BigInt(0x123)
 
-            expect(await chainship.verifyBoard(randomness, board)).to.equal(
-                BigInt('0x7bc3cf18a89fe5cc680e3940a007307fa59a2116edc996ee2319dbb04201498c')
-            )
+            const boards = [
+                `
+                ..........
+                .......#..
+                ..........
+                ..........
+                ....#.....
+                ....#.....
+                ..........
+                ..........
+                ..........
+                ..........
+                `,
+                `
+                ##........
+                ..........
+                ..........
+                ..........
+                ..........
+                ..........
+                ..........
+                ..........
+                ..........
+                .........#
+                `,
+            ]
+
+            for (const boardStr of boards) {
+                const [board] = getBoard(boardStr)
+                await chainship.verifyBoard(BigInt(0x123), board)
+            }
         })
     })
 

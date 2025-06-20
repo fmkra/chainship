@@ -108,6 +108,12 @@ export const abi = [
                 name: 'player',
                 type: 'address',
             },
+            {
+                indexed: false,
+                internalType: 'bool[]',
+                name: 'board',
+                type: 'bool[]',
+            },
         ],
         name: 'HonestyProven',
         type: 'event',
@@ -129,6 +135,25 @@ export const abi = [
             },
         ],
         name: 'JoinedRoom',
+        type: 'event',
+    },
+    {
+        anonymous: false,
+        inputs: [
+            {
+                indexed: false,
+                internalType: 'address',
+                name: 'player',
+                type: 'address',
+            },
+            {
+                indexed: false,
+                internalType: 'uint256',
+                name: 'prize',
+                type: 'uint256',
+            },
+        ],
+        name: 'PrizeReceived',
         type: 'event',
     },
     {
@@ -295,6 +320,38 @@ export const abi = [
     },
     {
         inputs: [],
+        name: 'MAX_SHIP_LENGTH',
+        outputs: [
+            {
+                internalType: 'uint8',
+                name: '',
+                type: 'uint8',
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'uint256',
+                name: '',
+                type: 'uint256',
+            },
+        ],
+        name: 'SHIP_COUNTS',
+        outputs: [
+            {
+                internalType: 'uint8',
+                name: '',
+                type: 'uint8',
+            },
+        ],
+        stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [],
         name: 'TOTAL_SHIP_PARTS',
         outputs: [
             {
@@ -304,6 +361,41 @@ export const abi = [
             },
         ],
         stateMutability: 'view',
+        type: 'function',
+    },
+    {
+        inputs: [
+            {
+                internalType: 'Chainship.RoomId',
+                name: 'roomId',
+                type: 'uint256',
+            },
+            {
+                components: [
+                    {
+                        internalType: 'uint8',
+                        name: 'x',
+                        type: 'uint8',
+                    },
+                    {
+                        internalType: 'uint8',
+                        name: 'y',
+                        type: 'uint8',
+                    },
+                ],
+                internalType: 'struct Chainship.Position',
+                name: 'answerPosition',
+                type: 'tuple',
+            },
+            {
+                internalType: 'enum Chainship.Answer',
+                name: 'answer',
+                type: 'uint8',
+            },
+        ],
+        name: 'answerAndClaimDishonest',
+        outputs: [],
+        stateMutability: 'nonpayable',
         type: 'function',
     },
     {
@@ -700,19 +792,6 @@ export const abi = [
             },
         ],
         name: 'proveVictory',
-        outputs: [],
-        stateMutability: 'nonpayable',
-        type: 'function',
-    },
-    {
-        inputs: [
-            {
-                internalType: 'Chainship.RoomId',
-                name: 'roomId',
-                type: 'uint256',
-            },
-        ],
-        name: 'receivePrize',
         outputs: [],
         stateMutability: 'nonpayable',
         type: 'function',

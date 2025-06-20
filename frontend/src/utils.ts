@@ -56,26 +56,18 @@ export function generateAnswer(
 ): ShotResultInt {
     const { x, y } = position
 
-    // Check if the shot is within board bounds
     if (x < 0 || x >= board.length || y < 0 || y >= board[0].length) {
         return ShotResultType.Miss
     }
 
-    // Check if there's a ship at this position
-    console.log('My board', board, x, y)
     if (!board[x][y]) {
-        console.log('Answer is miss')
         return ShotResultType.Miss
     }
 
-    // Check if this hit sinks the ship
     if (isShipSunk(board, enemyShots, x, y)) {
-        console.log('Answer is sunk')
         return ShotResultType.Sunk
     }
 
-    // It's a hit but doesn't sink the ship
-    console.log('Answer is hit')
     return ShotResultType.Hit
 }
 

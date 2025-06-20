@@ -18,7 +18,7 @@ contract TestInternals is Chainship {
         _verifyAnswerCorrectness(board, shots, answers);
     }
 
-    function verifyBoard(uint256 boardRandomness, bool[] calldata board) pure external returns (uint256) {
+    function verifyBoard(uint256 boardRandomness, bool[] calldata board) view external returns (uint256) {
         return _verifyBoard(boardRandomness, board);
     }
 }

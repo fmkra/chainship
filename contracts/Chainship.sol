@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 // Uncomment this line to use console.log
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 abstract contract Chainship {
     type RoomId is uint256;
@@ -10,7 +10,9 @@ abstract contract Chainship {
     uint256 public immutable CONTRACT_SEED;
     uint256 public immutable DEADLINE_BLOCK_TIME;
     uint8 public constant BOARD_SIZE = 10;
-    uint16 public constant TOTAL_SHIP_PARTS = 5; // TODO: Change
+    uint16 public constant TOTAL_SHIP_PARTS = 3; // TODO: Change
+    uint8 public constant MAX_SHIP_LENGTH = 2; // TODO: Change
+    uint8[MAX_SHIP_LENGTH] public SHIP_COUNTS = [1, 1]; // i-th element is the number of i-length ships (starting from 1)
 
     enum RoomStatus {
         /// Room does not exist in the mapping - default.
@@ -116,8 +118,9 @@ abstract contract Chainship {
     event ShotTaken(RoomId roomId, address player, uint256 noShots, Position position, uint256 newShotsCommitment);
     event ShotAnswered(RoomId roomId, address player, uint256 noShots, Position position, Answer answer, uint256 newAnswersCommitment);
     event DishonestyClaimed(RoomId roomId, address player);
-    event HonestyProven(RoomId roomId, address player);
+    event HonestyProven(RoomId roomId, address player, bool[] board);
     event VictoryProven(RoomId roomId, address player);
+    event PrizeReceived(address player, uint256 prize);
 
     function _setDeadline(RoomData storage room) internal {
         room.answerDeadline = block.number + DEADLINE_BLOCK_TIME;
@@ -279,16 +282,12 @@ abstract contract Chainship {
         emit ShotAnswered(roomId, player.playerAddress, enemy.noShots, position, answer, player.answersHash);
     }
 
-    function answerAndShoot(RoomId roomId, Position calldata answerPosition, Answer answer, Position calldata shootPosition) public {
-        answerShot(roomId, answerPosition, answer);
-        shoot(roomId, shootPosition);
-    }
-
     function claimDishonest(RoomId roomId) public {
         RoomData storage room = rooms[roomId];
         require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
-
         uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        require(room.whoseTurn == playerNumber, "It is not your turn");
+
         room.status = RoomStatus.DishonestyClaimed;
         room.whoseTurn = 1 - playerNumber;
         _setDeadline(room);
@@ -296,9 +295,9 @@ abstract contract Chainship {
         emit DishonestyClaimed(roomId, msg.sender);
     }
 
-    function _verifyBoard(uint256 boardRandomness, bool[] calldata board) pure internal returns (uint256) {
+    function _verifyBoard(uint256 boardRandomness, bool[] calldata board) view internal returns (uint256) {
         require(board.length == BOARD_SIZE * BOARD_SIZE, "Invalid board size");
-        // uint8[] shipCount;
+        uint8[] memory shipCount = new uint8[](MAX_SHIP_LENGTH);
         bool[] memory visited = new bool[](board.length);
         for(uint8 r = 0; r < BOARD_SIZE; r++) {
             for(uint8 c = 0; c < BOARD_SIZE; c++) {
@@ -307,22 +306,71 @@ abstract contract Chainship {
                 visited[i] = true;
                 bool isHorizontal = c + 1 < BOARD_SIZE && board[i + 1];
                 bool isVertical = r + 1 < BOARD_SIZE && board[i + BOARD_SIZE];
-                require(!(isHorizontal && isVertical), "Invalid ship placement");
-                // Now we treat 1x1 ship as both vertical and horizontal to simplify checks.
-                if(!isVertical && !isHorizontal) {
-                    isVertical = true;
-                    isHorizontal = true;
-                }
+                require(!(isHorizontal && isVertical), "Invalid ship placement (L-shape)");
+                // Now we treat 1x1 ship as only vertical to simplify checks.
+                if(!isVertical && !isHorizontal) isVertical = true;
 
+                console.log("isVertical", isVertical, r, c);
+                uint8 shipLength = 1;
                 if(isVertical) {
-                    // Top-left
-                    require(r == 0 || c == 0 || board[i - BOARD_SIZE - 1] == false, "Invalid ship placement");
-                    // Top
-                    require(r == 0 || board[i - BOARD_SIZE] == false, "Invalid ship placement");
-                    // Top-right
-                    require(r == 0 || c == BOARD_SIZE - 1 || board[i + 1 - BOARD_SIZE] == false, "Invalid ship placement");
+                    if(r != 0) {
+                        // Top-left
+                        require(c == 0 || board[i - BOARD_SIZE - 1] == false, "Invalid ship placement (top-left)");
+                        // Top
+                        require(board[i - BOARD_SIZE] == false, "Invalid ship placement (top)");
+                        // Top-right
+                        require(c == BOARD_SIZE - 1 || board[i + 1 - BOARD_SIZE] == false, "Invalid ship placement (top-right)");
+                    }
+                    while(i + shipLength * BOARD_SIZE < board.length && board[i + shipLength * BOARD_SIZE]) {
+                        visited[i + shipLength * BOARD_SIZE] = true;
+                        // Left
+                        require(c == 0 || board[i - 1 + shipLength * BOARD_SIZE] == false, "Invalid ship placement (left)");
+                        // Right
+                        require(c == BOARD_SIZE - 1 || board[i + 1 + shipLength * BOARD_SIZE] == false, "Invalid ship placement (right)");
+                        shipLength++;
+                    }
+                    if(r + shipLength < BOARD_SIZE) {
+                        // Bottom-left
+                        require(c == 0 || board[i + shipLength * BOARD_SIZE - 1] == false, "Invalid ship placement (bottom-left)");
+                        // Bottom
+                        require(board[i + shipLength * BOARD_SIZE] == false, "Invalid ship placement (bottom)");
+                        // Bottom-right
+                        require(c == BOARD_SIZE - 1 || board[i + shipLength * BOARD_SIZE + 1] == false, "Invalid ship placement (bottom-right)");
+                    }
+                } else {
+                    if(c != 0) {
+                        // Left-top
+                        require(r == 0 || board[i - BOARD_SIZE - 1] == false, "Invalid ship placement (top-left)");
+                        // Left
+                        require(board[i - 1] == false, "Invalid ship placement (left)");
+                        // Left-bottom
+                        require(r == BOARD_SIZE - 1 || board[i + BOARD_SIZE - 1] == false, "Invalid ship placement (bottom-left)");
+                    }
+                    while(i + shipLength < board.length && board[i + shipLength]) {
+                        visited[i + shipLength] = true;
+                        // Top
+                        require(r == 0 || board[i - BOARD_SIZE] == false, "Invalid ship placement (top)");
+                        // Bottom
+                        require(r == BOARD_SIZE - 1 || board[i + BOARD_SIZE] == false, "Invalid ship placement (bottom)");
+                        shipLength++;
+                    }
+                    if(c + shipLength < BOARD_SIZE) {
+                        // Right-top
+                        require(r == 0 || board[i + shipLength - BOARD_SIZE] == false, "Invalid ship placement (top-right)");
+                        // Right
+                        require(board[i + shipLength] == false, "Invalid ship placement (right)");
+                        // Right-bottom
+                        require(r == BOARD_SIZE - 1 || board[i + shipLength + BOARD_SIZE] == false, "Invalid ship placement (bottom-right)");
+                    }
                 }
+                if(shipLength > MAX_SHIP_LENGTH) {
+                    revert("Ship length is too long");
+                }
+                shipCount[shipLength - 1]++;
             }
+        }
+        for(uint8 i = 0; i < MAX_SHIP_LENGTH; i++) {
+            require(shipCount[i] == SHIP_COUNTS[i], "Invalid ship count");
         }
         return uint256(keccak256(abi.encodePacked(boardRandomness, board)));
     }
@@ -410,7 +458,9 @@ abstract contract Chainship {
         room.status = RoomStatus.Won;
         _setDeadline(room);
 
-        emit HonestyProven(roomId, msg.sender);
+        emit HonestyProven(roomId, msg.sender, board);
+
+        receivePrize(room, playerNumber);
     }
 
     // Verifies whether number of distinct ship hits is equal to number of ship parts.
@@ -437,7 +487,6 @@ abstract contract Chainship {
     }
 
     function proveVictory(RoomId roomId, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
-        // TODO: Check that all ships are sunk
         RoomData storage room = rooms[roomId];
         require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
 
@@ -453,11 +502,8 @@ abstract contract Chainship {
         _setDeadline(room);
 
         emit VictoryProven(roomId, msg.sender);
-    }
 
-    function answerAndClaimVictory(RoomId roomId, Position calldata answerPosition, Answer answer, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
-        answerShot(roomId, answerPosition, answer);
-        proveVictory(roomId, boardRandomness, board, enemyShots, myAnswers, myShots, enemyAnswers);
+        receivePrize(room, playerNumber);
     }
 
     function claimIdle(RoomId roomId) public {
@@ -478,13 +524,35 @@ abstract contract Chainship {
         }
     }
 
-    function receivePrize(RoomId roomId) public {
- 
+    function receivePrize(RoomData storage room, uint8 winnerPlayerNumber) internal {
+        address winnerAddress = room.players[winnerPlayerNumber].playerAddress;
+        uint256 prize = 2 * room.entryFee - calculateCommission(room.entryFee);
+        payable(winnerAddress).transfer(prize);
+        emit PrizeReceived(winnerAddress, prize);
     }
 }
 
-contract TestContract is Chainship {
-    constructor(uint256 contractSeed) Chainship(0x0, 10) {}
+abstract contract ChainshipWithMulticall is Chainship {
+    constructor(uint256 contractSeed, uint256 deadlineBlockTime) Chainship(contractSeed, deadlineBlockTime) {}
+
+    function answerAndShoot(RoomId roomId, Position calldata answerPosition, Answer answer, Position calldata shootPosition) public {
+        answerShot(roomId, answerPosition, answer);
+        shoot(roomId, shootPosition);
+    }
+
+    function answerAndClaimVictory(RoomId roomId, Position calldata answerPosition, Answer answer, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
+        answerShot(roomId, answerPosition, answer);
+        proveVictory(roomId, boardRandomness, board, enemyShots, myAnswers, myShots, enemyAnswers);
+    }
+
+    function answerAndClaimDishonest(RoomId roomId, Position calldata answerPosition, Answer answer) public {
+        answerShot(roomId, answerPosition, answer);
+        claimDishonest(roomId);
+    }
+}
+
+contract TestContract is ChainshipWithMulticall {
+    constructor(uint256 contractSeed) ChainshipWithMulticall(0x0, 10) {}
     uint256 public x;
 
     function calculateCommission(uint256 entryFee) public pure override returns (uint256) {

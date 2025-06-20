@@ -32,19 +32,20 @@ export const SHIPS_CONFIG: ShipConfig[] = [
     // { name: 'Carrier', length: 5 },
     // { name: 'Battleship', length: 4 },
     // { name: 'Cruiser', length: 3 },
-    { name: 'Submarine', length: 3 },
+    // { name: 'Submarine', length: 3 },
     { name: 'Destroyer', length: 2 },
+    { name: 'Patrol Boat', length: 1 },
 ]
 
 export const TOTAL_SHIPS = SHIPS_CONFIG.reduce((acc, ship) => acc + ship.length, 0)
 
-export const WinnerType = {
+export const OptionalPlayer = {
     None: 0,
     Self: 1,
     Opponent: 2,
 } as const
 
-export type WinnerTypeInt = (typeof WinnerType)[keyof typeof WinnerType]
+export type OptionalPlayerInt = (typeof OptionalPlayer)[keyof typeof OptionalPlayer]
 
 export interface State {
     panel: 'select' | 'create' | 'waitForPlayer' | 'join' | 'board' | 'game'
@@ -63,7 +64,9 @@ export interface State {
             enemyShots: ShotCoordinate[]
             myShotAnswers: ShotResult[]
             enemyShotAnswers: ShotResult[]
-            winner: WinnerTypeInt
+            winner: OptionalPlayerInt
+            dishonestyClaimed: OptionalPlayerInt // who WAS ACCUSED of cheating
+            provenEnemyBoard?: boolean[][]
         }
     >
 }
@@ -82,9 +85,12 @@ export interface Actions {
     submitBoard: (boardRandomness: string, board: boolean[][]) => void
     startGame: (startingPlayer: string) => void
     setIsMyTurn: (isMyTurn: boolean) => void
-    updateShots: (player: string, noShots: number, position: ShotCoordinate) => void
+    updateShots: (shots: [string, number, ShotCoordinate][]) => void
     updateAnswers: (answers: [string, number, ShotCoordinate, ShotResultInt][]) => void
     generateAnswer: (position: ShotCoordinate) => ShotResultInt
+    leaveRoom: () => void
+    claimDishonest: (player: string) => void
+    setHonestyProven: (board: boolean[][]) => void
 }
 
 export const useStore = create<State & Actions>()(
@@ -110,7 +116,8 @@ export const useStore = create<State & Actions>()(
                             enemyShots: [],
                             myShotAnswers: [],
                             enemyShotAnswers: [],
-                            winner: WinnerType.None,
+                            winner: OptionalPlayer.None,
+                            dishonestyClaimed: OptionalPlayer.None,
                         },
                     },
                 })),
@@ -158,15 +165,30 @@ export const useStore = create<State & Actions>()(
                         },
                     },
                 })),
-            updateShots: (player, noShots, position) =>
+            updateShots: (shots) =>
                 set((state) => {
                     const room = state.roomData[state.activeRoomId!]
-                    const isSelf = room.opponent !== player
-                    const newShots = isSelf ? [...room.myShots] : [...room.enemyShots]
-                    newShots[noShots - 1] = position
-                    const noEnemyShots = isSelf ? room.enemyShots.length : newShots.length
+
+                    const newMyShots = [...room.myShots]
+                    const newEnemyShots = [...room.enemyShots]
+
+                    for (const [player, noShots, position] of shots) {
+                        const isSelf = room.opponent !== player
+                        const newShots = isSelf ? newMyShots : newEnemyShots
+                        newShots[noShots - 1] = position
+                    }
+
+                    const noEnemyShots = newEnemyShots.length
                     const noMyAnswers = room.myShotAnswers.length
                     const isMyTurn = noEnemyShots > noMyAnswers
+                    console.log(
+                        'settings isMyTurn =',
+                        isMyTurn,
+                        'because noEnemyShots =',
+                        noEnemyShots,
+                        'noMyAnswers =',
+                        noMyAnswers
+                    )
                     return {
                         ...state,
                         roomData: {
@@ -174,7 +196,8 @@ export const useStore = create<State & Actions>()(
                             [state.activeRoomId!]: {
                                 ...room,
                                 isMyTurn,
-                                [isSelf ? 'myShots' : 'enemyShots']: newShots,
+                                myShots: newMyShots,
+                                enemyShots: newEnemyShots,
                             },
                         },
                     }
@@ -206,12 +229,10 @@ export const useStore = create<State & Actions>()(
 
                     const winner =
                         noMyHits === TOTAL_SHIPS
-                            ? WinnerType.Self
+                            ? OptionalPlayer.Self
                             : noEnemyHits === TOTAL_SHIPS
-                            ? WinnerType.Opponent
-                            : WinnerType.None
-
-                    console.log('Winner', winner, noMyHits, noEnemyHits)
+                            ? OptionalPlayer.Opponent
+                            : OptionalPlayer.None
 
                     return {
                         ...state,
@@ -230,6 +251,46 @@ export const useStore = create<State & Actions>()(
                 const s = get()
                 const room = s.roomData[s.activeRoomId!]
                 return generateAnswer(room.myBoard!, room.enemyShots, position)
+            },
+            leaveRoom: () =>
+                set((state) => ({
+                    ...state,
+                    panel: 'select',
+                    activeRoomId: undefined,
+                    roomData: {},
+                })),
+            claimDishonest: (player) => {
+                const s = get()
+                console.log('claimDishonest', player, s.roomData[s.activeRoomId!].opponent)
+                const isMyTurn = player !== s.roomData[s.activeRoomId!].opponent
+                const newDishonesty = isMyTurn ? OptionalPlayer.Opponent : OptionalPlayer.Self
+                console.log('newDishonesty', newDishonesty)
+                if (newDishonesty === s.roomData[s.activeRoomId!].dishonestyClaimed) {
+                    return
+                }
+                set((state) => ({
+                    ...state,
+                    roomData: {
+                        ...state.roomData,
+                        [s.activeRoomId!]: {
+                            ...s.roomData[s.activeRoomId!],
+                            isMyTurn,
+                            dishonestyClaimed: newDishonesty,
+                        },
+                    },
+                }))
+            },
+            setHonestyProven: (board) => {
+                set((state) => ({
+                    ...state,
+                    roomData: {
+                        ...state.roomData,
+                        [state.activeRoomId!]: {
+                            ...state.roomData[state.activeRoomId!],
+                            provenEnemyBoard: board,
+                        },
+                    },
+                }))
             },
         }),
         {
