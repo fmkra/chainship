@@ -1,7 +1,17 @@
 {
   "name": "hardhat-project",
   "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "hardhat": "^2.22.19"
+    "chai": "^5.2.0",
+    "hardhat": "^2.22.19",
+    "hardhat-gas-reporter": "^2.2.3"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0"
   }
 }

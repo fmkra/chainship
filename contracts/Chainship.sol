@@ -8,12 +8,39 @@ abstract contract Chainship {
     type RoomId is uint256;
 
     uint256 public immutable CONTRACT_SEED;
+    uint256 public immutable DEADLINE_BLOCK_TIME;
+    uint8 public constant BOARD_SIZE = 10;
+    uint16 public constant TOTAL_SHIP_PARTS = 5; // TODO: Change
 
     enum RoomStatus {
-        NonExistent, /// Room does not exist in the mapping
-        Created, /// Room has been created and only the creator is in the room, waiting for the second player to join
-        Full, /// Room has been created and both players joined the room, waiting for both players to submit their board
-        InGame /// Both players have submitted their board, players are placing their shots
+        /// Room does not exist in the mapping - default.
+        NonExistent,
+
+        /// Room has been created and only the creator is in the room.
+        /// Waiting for the second player to join.
+        Created,
+
+        /// Room has been created and both players joined the room.
+        /// Waiting for both players to commit to their board.
+        Full,
+
+        /// Both players have committed to their board.
+        /// Waiting for player to shoot or claim victory.
+        Shooting,
+
+        /// Both players have submitted their board.
+        /// Waiting for player to answer.
+        Answering,
+
+        /// Player x claimed that player y is cheating.
+        /// Player y will have to prove that they didn't cheat.
+        DishonestyClaimed,
+
+        /// Player x has proven victory or honesty.
+        Won,
+
+        /// Game is finished and winner has proven or failed to prove victory.
+        Finished
     }
 
     struct PlayerData {
@@ -22,6 +49,17 @@ abstract contract Chainship {
 
         /// Commitment to ship placement that player submitted.
         uint256 boardCommitment;
+
+        uint16 noShots;
+
+        uint256 shotsHash;
+
+        uint256 answersHash;
+
+        /// Variables is shared between randomness commitment and decommitment.
+        /// When player didn't submit the board yet, i.e. boardCommitment is 0,
+        /// then this is commitment to randomness, otherwise it is the decommited value.
+        uint256 randomness;
     }
 
     struct RoomData {
@@ -36,12 +74,34 @@ abstract contract Chainship {
         /// [0] - Data for player that created the room.
         /// [1] - Data for player that joined the room.
         PlayerData[2] players;
+
+        /// [0] - Player 1's turn.
+        /// [1] - Player 2's turn.
+        /// If player x has claimed dishonesty, whoseTurn is set to player y.
+        /// If player x has claimed victory, whoseTurn is set to player x.
+        /// If state is Won, whoseTurn is set to the winner.
+        uint8 whoseTurn;
+
+        /// Block number to which player has to send next expected message.
+        uint256 answerDeadline;
     }
 
     mapping(RoomId => RoomData) public rooms;
 
-    constructor(uint256 contractSeed) {
+    struct Position {
+        uint8 x;
+        uint8 y;
+    }
+
+    enum Answer {
+        Miss,
+        Hit,
+        Sunk
+    }
+
+    constructor(uint256 contractSeed, uint256 deadlineBlockTime) {
         CONTRACT_SEED = contractSeed;
+        DEADLINE_BLOCK_TIME = deadlineBlockTime;
     }
 
     /// Returns the amount that is taken as a commission from the prize pool, given the entry fee.
@@ -49,16 +109,29 @@ abstract contract Chainship {
     /// the commission is 10$ and winner receives 190$, so they gain 90$.
     function calculateCommission(uint256 entryFee) public pure virtual returns (uint256);
 
-    event CreatedRoom(RoomId publicId, address player1, uint256 entryFee, uint256 commission);
-    event JoinedRoom(RoomId publicId, address player2);
-    event BoardSubmitted(RoomId publicId, address player, uint256 boardCommitment);
-    event GameStarted(RoomId publicId);
+    event CreatedRoom(RoomId roomId, address player1, uint256 entryFee, uint256 commission);
+    event JoinedRoom(RoomId roomId, address player2);
+    event BoardSubmitted(RoomId roomId, address player, uint256 boardCommitment);
+    event GameStarted(RoomId roomId, address startingPlayer);
+    event ShotTaken(RoomId roomId, address player, uint256 noShots, Position position, uint256 newShotsCommitment);
+    event ShotAnswered(RoomId roomId, address player, uint256 noShots, Position position, Answer answer, uint256 newAnswersCommitment);
+    event DishonestyClaimed(RoomId roomId, address player);
+    event HonestyProven(RoomId roomId, address player);
+    event VictoryProven(RoomId roomId, address player);
 
-    function getPublicRoomId(RoomId privateId) public view returns (RoomId) {
-        return RoomId.wrap(uint256(keccak256(abi.encodePacked(CONTRACT_SEED, privateId))));
+    function _setDeadline(RoomData storage room) internal {
+        room.answerDeadline = block.number + DEADLINE_BLOCK_TIME;
     }
 
-    function createRoom(RoomId publicId) public payable {
+    function _assertWithinDeadline(RoomData memory room) internal view {
+        require(block.number <= room.answerDeadline, "Deadline has passed");
+    }
+
+    function roomSecretToId(uint256 roomSecret) public view returns (RoomId) {
+        return RoomId.wrap(uint256(keccak256(abi.encodePacked(CONTRACT_SEED, roomSecret))));
+    }
+
+    function createRoom(RoomId roomId, uint256 randomnessCommitment) public payable {
         // Amount that each player pays to join the room.
         uint256 entryFee = msg.value;
 
@@ -68,7 +141,7 @@ abstract contract Chainship {
         // Entry fee must be greater than commission, otherwise the winner would receive less than they paid.
         require(entryFee > commission, "Entry fee must be greater than commission");
 
-        RoomData storage room = rooms[publicId];
+        RoomData storage room = rooms[roomId];
 
         // Room Ids cannot be reused, because otherwise `privateId` would be known to the public.
         require(room.status == RoomStatus.NonExistent, "Room already exists");
@@ -76,12 +149,19 @@ abstract contract Chainship {
         room.status = RoomStatus.Created;
         room.entryFee = entryFee;
         room.players[0].playerAddress = msg.sender;
-        emit CreatedRoom(publicId, msg.sender, entryFee, commission);
+        room.players[0].randomness = randomnessCommitment;
+        emit CreatedRoom(roomId, msg.sender, entryFee, commission);
     }
 
-    function joinRoom(RoomId privateId) public payable {
-        RoomId publicId = getPublicRoomId(privateId);
-        RoomData storage room = rooms[publicId];
+    function getRoomInfo(RoomId roomId) public view returns (RoomStatus, uint256, address) {
+        RoomData memory room = rooms[roomId];
+        require(room.status != RoomStatus.NonExistent, "Room does not exist");
+        return (room.status, room.entryFee, room.players[0].playerAddress);
+    }
+
+    function joinRoom(uint256 roomSecret, uint256 randomnessCommitment) public payable {
+        RoomId roomId = roomSecretToId(roomSecret);
+        RoomData storage room = rooms[roomId];
 
         // Players can only join rooms that has been created and nobody joined yet.
         require(room.status == RoomStatus.Created, "Room is not in the created state");
@@ -89,14 +169,19 @@ abstract contract Chainship {
         // Both players must pay the same amount of money to join the room.
         require(msg.value == room.entryFee, "Entry fee must be equal to the room entry fee");
 
+        // Player cannot join their own room.
+        require(room.players[0].playerAddress != msg.sender, "You cannot join your own room");
+
         room.players[1].playerAddress = msg.sender;
+        room.players[1].randomness = randomnessCommitment;
         room.status = RoomStatus.Full;
-        emit JoinedRoom(publicId, msg.sender);
+        _setDeadline(room);
+        emit JoinedRoom(roomId, msg.sender);
     }
 
     /// For the given room, returns at which position given player is.
     /// Function reverts if player is not in the room.
-    function getPlayerNumber(RoomData memory room, address playerAddress) pure internal returns (uint8) {
+    function _getPlayerNumber(RoomData memory room, address playerAddress) pure internal returns (uint8) {
         if(room.players[0].playerAddress == playerAddress) {
             return 0;
         } else if(room.players[1].playerAddress == playerAddress) {
@@ -106,17 +191,27 @@ abstract contract Chainship {
         }
     }
 
-    function submitBoard(RoomId publicId, uint256 boardCommitment) public {
+    function _verifyRandomnessCommitment(uint256 commitment, uint256 decommitment) pure internal {
+        require(uint256(keccak256(abi.encodePacked(decommitment))) == commitment, "Randomness commitment does not match");
+    }
+
+    function _getStartingPlayer(uint256 player1Randomness, uint256 player2Randomness) pure internal returns (uint8) {
+        return uint8(uint256(keccak256(abi.encodePacked(player1Randomness, player2Randomness))) & 1);
+    }
+
+    function submitBoard(RoomId roomId, uint256 boardCommitment, uint256 randomnessDecommitment) public {
         // `boardCommitment = 0` represents no commitment, so it cannot be accepted.
         require(boardCommitment != 0, "Board commitment must be non-zero");
 
-        RoomData storage room = rooms[publicId];
+        RoomData storage room = rooms[roomId];
 
         // Players can only submit their board if both players have joined the room and game has not started yet.
         require(room.status == RoomStatus.Full, "Room is not in the full state");
+
+        _assertWithinDeadline(room);
         
         // Check which player is submitting the board.
-        uint8 playerNumber = getPlayerNumber(room, msg.sender);
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
         PlayerData storage player = room.players[playerNumber];
 
         // Players can only submit their board once.
@@ -124,22 +219,280 @@ abstract contract Chainship {
 
         player.boardCommitment = boardCommitment;
 
+        // Verify and save randomness decommitment
+        _verifyRandomnessCommitment(player.randomness, randomnessDecommitment);
+        player.randomness = randomnessDecommitment;
+
         // Check whether second player has also submitted their board.
         bool bothBoardsSubmitted = room.players[1 - playerNumber].boardCommitment != 0;
 
-        emit BoardSubmitted(publicId, msg.sender, boardCommitment);
+        emit BoardSubmitted(roomId, msg.sender, boardCommitment);
         if (bothBoardsSubmitted) {
-            room.status = RoomStatus.InGame;
-            emit GameStarted(publicId);
+            uint8 startingPlayer = _getStartingPlayer(room.players[0].randomness, room.players[1].randomness);
+            room.whoseTurn = startingPlayer;
+            room.status = RoomStatus.Shooting;
+            _setDeadline(room);
+            emit GameStarted(roomId, room.players[startingPlayer].playerAddress);
         }
+    }
+
+    function _iterateShotsHash(uint256 shotsHash, uint256 noShots, Position calldata position) pure internal returns (uint256) {
+        require(position.x < BOARD_SIZE && position.y < BOARD_SIZE, "Invalid position");
+        return uint256(keccak256(abi.encodePacked(shotsHash, noShots, uint256(position.x), uint256(position.y))));
+    }
+
+    function shoot(RoomId roomId, Position calldata position) public {
+        RoomData storage room = rooms[roomId];
+        require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
+
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        require(room.whoseTurn == playerNumber, "It is not your turn");
+
+        PlayerData storage player = room.players[playerNumber];
+
+        player.noShots++;
+        player.shotsHash = _iterateShotsHash(player.shotsHash, player.noShots, position);
+        room.status = RoomStatus.Answering;
+        room.whoseTurn = 1 - room.whoseTurn;
+        _setDeadline(room);
+
+        emit ShotTaken(roomId, player.playerAddress, player.noShots, position, player.shotsHash);
+    }
+
+    function _iterateAnswersHash(uint256 answersHash, uint256 noShots, Position calldata position, Answer answer) pure internal returns (uint256) {
+        require(position.x < BOARD_SIZE && position.y < BOARD_SIZE, "Invalid position");
+        return uint256(keccak256(abi.encodePacked(answersHash, noShots, uint256(position.x), uint256(position.y), uint256(answer))));
+    }
+
+    function answerShot(RoomId roomId, Position calldata position, Answer answer) public {
+        RoomData storage room = rooms[roomId];
+        require(room.status == RoomStatus.Answering, "Room is not in the answering state");
+
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        PlayerData storage player = room.players[playerNumber];
+        PlayerData storage enemy = room.players[1 - playerNumber];
+
+        player.answersHash = _iterateAnswersHash(player.answersHash, enemy.noShots, position, answer);
+        room.status = RoomStatus.Shooting;
+        _setDeadline(room);
+
+        emit ShotAnswered(roomId, player.playerAddress, enemy.noShots, position, answer, player.answersHash);
+    }
+
+    function answerAndShoot(RoomId roomId, Position calldata answerPosition, Answer answer, Position calldata shootPosition) public {
+        answerShot(roomId, answerPosition, answer);
+        shoot(roomId, shootPosition);
+    }
+
+    function claimDishonest(RoomId roomId) public {
+        RoomData storage room = rooms[roomId];
+        require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
+
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        room.status = RoomStatus.DishonestyClaimed;
+        room.whoseTurn = 1 - playerNumber;
+        _setDeadline(room);
+
+        emit DishonestyClaimed(roomId, msg.sender);
+    }
+
+    function _verifyBoard(uint256 boardRandomness, bool[] calldata board) pure internal returns (uint256) {
+        require(board.length == BOARD_SIZE * BOARD_SIZE, "Invalid board size");
+        // uint8[] shipCount;
+        bool[] memory visited = new bool[](board.length);
+        for(uint8 r = 0; r < BOARD_SIZE; r++) {
+            for(uint8 c = 0; c < BOARD_SIZE; c++) {
+                uint16 i = uint16(r) * uint16(BOARD_SIZE) + uint16(c);
+                if(visited[i] || board[i] == false) continue;
+                visited[i] = true;
+                bool isHorizontal = c + 1 < BOARD_SIZE && board[i + 1];
+                bool isVertical = r + 1 < BOARD_SIZE && board[i + BOARD_SIZE];
+                require(!(isHorizontal && isVertical), "Invalid ship placement");
+                // Now we treat 1x1 ship as both vertical and horizontal to simplify checks.
+                if(!isVertical && !isHorizontal) {
+                    isVertical = true;
+                    isHorizontal = true;
+                }
+
+                if(isVertical) {
+                    // Top-left
+                    require(r == 0 || c == 0 || board[i - BOARD_SIZE - 1] == false, "Invalid ship placement");
+                    // Top
+                    require(r == 0 || board[i - BOARD_SIZE] == false, "Invalid ship placement");
+                    // Top-right
+                    require(r == 0 || c == BOARD_SIZE - 1 || board[i + 1 - BOARD_SIZE] == false, "Invalid ship placement");
+                }
+            }
+        }
+        return uint256(keccak256(abi.encodePacked(boardRandomness, board)));
+    }
+
+    /// Checks whether, if player was to hit at *position*, given *board* and hit positions (*hits*), would it sink the ship
+    function _isSinkHit(bool[] calldata board, bool[] memory hits, uint16 position) pure internal returns (bool) {
+        // Go right
+        // Notice: when the cell is rightmost, 
+        // (position + 1) % BOARD_SIZE == 0 before the first iteration, so it breaks immediately
+        for(uint16 i = position + 1; i % BOARD_SIZE != 0 && board[i]; i++) {
+            if(hits[i] == false) return false;
+        }
+
+        // Go left
+        // Notice: when the cell is leftmost,
+        // then (position - 1) % BOARD_SIZE == BOARD_SIZE - 1 before the first iteration, so it breaks immediately,
+        // but we have to prevent integer underflow in case position == 0
+        if(position != 0) {
+            for(uint16 i = position - 1; i % BOARD_SIZE != BOARD_SIZE - 1 && board[i]; i--) {
+                if(hits[i] == false) return false;
+                if(i == 0) break; // break before decrement to avoid underflow
+            }
+        }
+
+        // Go up
+        uint16 boardLimit = uint16(BOARD_SIZE) * uint16(BOARD_SIZE);
+        for(uint16 i = position + BOARD_SIZE; i < boardLimit && board[i]; i += BOARD_SIZE) {
+            if(hits[i] == false) return false;
+        }
+
+        // Go down
+        if(position >= BOARD_SIZE) {
+            for(uint16 i = position - BOARD_SIZE; board[i]; i -= BOARD_SIZE) {
+                if(hits[i] == false) return false;
+                if(i < BOARD_SIZE) break; // break before subtraction to avoid underflow
+            }
+        }
+        return true;
+    }
+
+    function _verifyAnswerCorrectness(bool[] calldata board, Position[] calldata shots, Answer[] calldata answers) pure internal returns (uint256 shotsHash, uint256 answersHash, uint16 noHits) {
+        shotsHash = 0;
+        answersHash = 0;
+        noHits = 0;
+        require(shots.length == answers.length, "Shots and answers must have the same length");
+        bool[] memory hits = new bool[](board.length);
+        for(uint256 i = 0; i < shots.length; i++) {
+            shotsHash = _iterateShotsHash(shotsHash, i+1, shots[i]);
+            answersHash = _iterateAnswersHash(answersHash, i+1, shots[i], answers[i]);
+
+            uint16 position = uint16(shots[i].x) * BOARD_SIZE + uint16(shots[i].y);
+            if(board[position] == false) {
+                require(answers[i] == Answer.Miss, "Missed shot cannot be answered as hit or sunk");
+            } else {
+                if(!hits[position]) noHits++;
+                hits[position] = true;
+                if(_isSinkHit(board, hits, position)) {
+                    require(answers[i] == Answer.Sunk, "Ship cannot be sunk if it has not been hit");
+                } else {
+                    require(answers[i] == Answer.Hit, "Ship must be sunk if all its parts have been hit");
+                }
+            }
+        }
+    }
+
+    function _verifyHonesty(RoomData storage room, uint8 playerNumber, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers) internal {
+        require(room.whoseTurn == playerNumber, "It is not your turn");
+
+        uint256 boardCommitment = _verifyBoard(boardRandomness, board);
+        require(boardCommitment == room.players[playerNumber].boardCommitment, "Board commitment does not match");
+
+        (uint256 enemyShotsHash, uint256 myAnswersHash, ) = _verifyAnswerCorrectness(board, enemyShots, myAnswers);
+
+        require(enemyShotsHash == room.players[1 - playerNumber].shotsHash, "Shots don't match enemy shots");
+        require(myAnswersHash == room.players[playerNumber].answersHash, "Answers don't match my answers");
+    }
+
+    function proveHonesty(RoomId roomId, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers) public {
+        RoomData storage room = rooms[roomId];
+        require(room.status == RoomStatus.DishonestyClaimed, "Room is not in the dishonesty claimed state");
+
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        _verifyHonesty(room, playerNumber, boardRandomness, board, enemyShots, myAnswers);
+
+        room.status = RoomStatus.Won;
+        _setDeadline(room);
+
+        emit HonestyProven(roomId, msg.sender);
+    }
+
+    // Verifies whether number of distinct ship hits is equal to number of ship parts.
+    // It does not check whether ships are placed correctly.
+    function _verifyShipsSunk(Position[] calldata myShots, Answer[] calldata enemyAnswers) pure internal returns (uint256 myShotsHash, uint256 enemyAnswersHash) {
+        myShotsHash = 0;
+        enemyAnswersHash = 0;
+
+        bool[] memory hits = new bool[](BOARD_SIZE * BOARD_SIZE);
+        for(uint256 i = 0; i < myShots.length; i++) {
+            myShotsHash = _iterateShotsHash(myShotsHash, i+1, myShots[i]);
+            enemyAnswersHash = _iterateAnswersHash(enemyAnswersHash, i+1, myShots[i], enemyAnswers[i]);
+            uint16 position = uint16(myShots[i].x) * BOARD_SIZE + uint16(myShots[i].y);
+            if(enemyAnswers[i] != Answer.Miss) {
+                hits[position] = true;
+            }
+        }
+        uint16 noShipHits = 0;
+        for(uint16 i = 0; i < hits.length; i++) {
+            if(hits[i]) noShipHits++;
+        }
+        require(noShipHits == TOTAL_SHIP_PARTS, "Number of ship hits does not match number of ship parts");
+        return (myShotsHash, enemyAnswersHash);
+    }
+
+    function proveVictory(RoomId roomId, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
+        // TODO: Check that all ships are sunk
+        RoomData storage room = rooms[roomId];
+        require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
+
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        _verifyHonesty(room, playerNumber, boardRandomness, board, enemyShots, myAnswers);
+
+        (uint256 myShotsHash, uint256 enemyAnswersHash) = _verifyShipsSunk(myShots, enemyAnswers);
+
+        require(myShotsHash == room.players[playerNumber].shotsHash, "Shots don't match my shots");
+        require(enemyAnswersHash == room.players[1 - playerNumber].answersHash, "Answers don't match enemy answers");
+
+        room.status = RoomStatus.Won;
+        _setDeadline(room);
+
+        emit VictoryProven(roomId, msg.sender);
+    }
+
+    function answerAndClaimVictory(RoomId roomId, Position calldata answerPosition, Answer answer, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
+        answerShot(roomId, answerPosition, answer);
+        proveVictory(roomId, boardRandomness, board, enemyShots, myAnswers, myShots, enemyAnswers);
+    }
+
+    function claimIdle(RoomId roomId) public {
+        RoomData storage room = rooms[roomId];
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        uint8 otherPlayer = 1 - playerNumber;
+
+        // Didn't respond on time
+        bool isPastDeadline = block.number > room.answerDeadline;
+        bool isBoardMissing = room.status == RoomStatus.Full && room.players[otherPlayer].boardCommitment == 0;
+        bool isMyTurnMissing = (room.status == RoomStatus.Shooting || room.status == RoomStatus.Answering || room.status == RoomStatus.DishonestyClaimed) && room.whoseTurn == otherPlayer;
+        if(block.number > room.answerDeadline && (
+            room.status == RoomStatus.Full && room.players[otherPlayer].boardCommitment == 0
+            ||
+            (room.status == RoomStatus.Shooting || room.status == RoomStatus.Answering)
+        )) {
+            
+        }
+    }
+
+    function receivePrize(RoomId roomId) public {
+ 
     }
 }
 
-contract ChainshipImpl is Chainship {
-    constructor(uint256 contractSeed) Chainship(contractSeed) {}
+contract TestContract is Chainship {
+    constructor(uint256 contractSeed) Chainship(0x0, 10) {}
+    uint256 public x;
 
     function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
         // around 0.02 USD + 0.1% of entry fee
         return 10000 gwei + entryFee / 1000;
+    }
+
+    function testSomething() public {
+        x = 7;
     }
 }
