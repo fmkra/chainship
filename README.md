@@ -4,7 +4,7 @@ Contracts:
 
 ```
 npx hardhat node
-npx hardhat ignition deploy ignition/modules/Chainship.ts --network localhost
+npx hardhat ignition deploy ignition/modules/TestContract.ts --network localhost
 ```
 
 Frontend:

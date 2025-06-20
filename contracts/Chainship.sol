@@ -589,15 +589,20 @@ abstract contract ChainshipWithMulticall is Chainship {
 }
 
 contract TestContract is ChainshipWithMulticall {
-    constructor(uint256 contractSeed) ChainshipWithMulticall(0x0, 10) {}
+    constructor(uint256 contractSeed) ChainshipWithMulticall(contractSeed, 10) {}
     uint256 public x;
 
     function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
         // around 0.02 USD + 0.1% of entry fee
         return 10000 gwei + entryFee / 1000;
     }
+}
 
-    function testSomething() public {
-        x = 7;
+contract ChainshipImplementation is ChainshipWithMulticall {
+    constructor(uint256 contractSeed) ChainshipWithMulticall(contractSeed, 10 * 60 / 12) {} // 10 minutes
+
+    function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
+        // around 0.02 USD + 0.1% of entry fee
+        return 10000 gwei + entryFee / 1000;
     }
 }
