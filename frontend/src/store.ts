@@ -29,12 +29,11 @@ export interface ShipConfig {
 }
 
 export const SHIPS_CONFIG: ShipConfig[] = [
-    // { name: 'Carrier', length: 5 },
-    // { name: 'Battleship', length: 4 },
-    // { name: 'Cruiser', length: 3 },
-    // { name: 'Submarine', length: 3 },
+    { name: 'Carrier', length: 5 },
+    { name: 'Battleship', length: 4 },
+    { name: 'Cruiser', length: 3 },
+    { name: 'Submarine', length: 3 },
     { name: 'Destroyer', length: 2 },
-    { name: 'Patrol Boat', length: 1 },
 ]
 
 export const TOTAL_SHIPS = SHIPS_CONFIG.reduce((acc, ship) => acc + ship.length, 0)

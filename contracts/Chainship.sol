@@ -10,9 +10,9 @@ abstract contract Chainship {
     uint256 public immutable CONTRACT_SEED;
     uint256 public immutable DEADLINE_BLOCK_TIME;
     uint8 public constant BOARD_SIZE = 10;
-    uint16 public constant TOTAL_SHIP_PARTS = 3; // TODO: Change
-    uint8 public constant MAX_SHIP_LENGTH = 2; // TODO: Change
-    uint8[MAX_SHIP_LENGTH] public SHIP_COUNTS = [1, 1]; // i-th element is the number of i-length ships (starting from 1)
+    uint16 public constant TOTAL_SHIP_PARTS = 17;
+    uint8 public constant MAX_SHIP_LENGTH = 5;
+    uint8[MAX_SHIP_LENGTH] public SHIP_COUNTS = [0, 1, 2, 1, 1]; // i-th element is the number of i-length ships (starting from 1)
 
     enum RoomStatus {
         /// Room does not exist in the mapping - default.
@@ -38,11 +38,8 @@ abstract contract Chainship {
         /// Player y will have to prove that they didn't cheat.
         DishonestyClaimed,
 
-        /// Player x has proven victory or honesty.
-        Won,
-
-        /// Game is finished and winner has proven or failed to prove victory.
-        Finished
+        /// Player x has proven victory, honesty or claimed idle.
+        Won
     }
 
     struct PlayerData {
@@ -120,6 +117,7 @@ abstract contract Chainship {
     event DishonestyClaimed(RoomId roomId, address player);
     event HonestyProven(RoomId roomId, address player, bool[] board);
     event VictoryProven(RoomId roomId, address player, bool[] board);
+    event IdleClaimed(RoomId roomId, address player); // `player` - who claimed that enemy is idle
     event PrizeReceived(address player, uint256 prize);
 
     function _setDeadline(RoomData storage room) internal {
@@ -146,7 +144,7 @@ abstract contract Chainship {
 
         RoomData storage room = rooms[roomId];
 
-        // Room Ids cannot be reused, because otherwise `privateId` would be known to the public.
+        // Room Ids cannot be reused, because otherwise `roomSecret` would be known to the public.
         require(room.status == RoomStatus.NonExistent, "Room already exists");
 
         room.status = RoomStatus.Created;
@@ -166,7 +164,7 @@ abstract contract Chainship {
         RoomId roomId = roomSecretToId(roomSecret);
         RoomData storage room = rooms[roomId];
 
-        // Players can only join rooms that has been created and nobody joined yet.
+        // Players can only join rooms that have been created and nobody joined yet.
         require(room.status == RoomStatus.Created, "Room is not in the created state");
 
         // Both players must pay the same amount of money to join the room.
@@ -198,6 +196,8 @@ abstract contract Chainship {
         require(uint256(keccak256(abi.encodePacked(decommitment))) == commitment, "Randomness commitment does not match");
     }
 
+    /// Returns 0 if player 1 has the starting turn, 1 if player 2 has the starting turn.
+    /// Result is fair given that both players have submitted their randomness through the commitment.
     function _getStartingPlayer(uint256 player1Randomness, uint256 player2Randomness) pure internal returns (uint8) {
         return uint8(uint256(keccak256(abi.encodePacked(player1Randomness, player2Randomness))) & 1);
     }
@@ -224,6 +224,7 @@ abstract contract Chainship {
 
         // Verify and save randomness decommitment
         _verifyRandomnessCommitment(player.randomness, randomnessDecommitment);
+        // `boardCommitment` changes from 0 to non-zero, so now randomness saves decommited value instead of commitment
         player.randomness = randomnessDecommitment;
 
         // Check whether second player has also submitted their board.
@@ -245,6 +246,8 @@ abstract contract Chainship {
     }
 
     function shoot(RoomId roomId, Position calldata position) public {
+        // TODO: Maybe to prevent user from accidentally sending answer for other shot,
+        // TODO: provide noShots as an argument and check against saved value?
         RoomData storage room = rooms[roomId];
         require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
 
@@ -253,8 +256,11 @@ abstract contract Chainship {
 
         PlayerData storage player = room.players[playerNumber];
 
+        // Iterate the hash so that player cannot change their shot.
         player.noShots++;
         player.shotsHash = _iterateShotsHash(player.shotsHash, player.noShots, position);
+
+        // Now it is enemy's turn to answer.
         room.status = RoomStatus.Answering;
         room.whoseTurn = 1 - room.whoseTurn;
         _setDeadline(room);
@@ -268,6 +274,7 @@ abstract contract Chainship {
     }
 
     function answerShot(RoomId roomId, Position calldata position, Answer answer) public {
+        // TODO: Same as for `shoot` function, maybe to provide noShots as an argument?
         RoomData storage room = rooms[roomId];
         require(room.status == RoomStatus.Answering, "Room is not in the answering state");
 
@@ -282,8 +289,13 @@ abstract contract Chainship {
         emit ShotAnswered(roomId, player.playerAddress, enemy.noShots, position, answer, player.answersHash);
     }
 
+    /// Player can claim that their enemy answered incorrectly.
+    /// In that case, accused player has to prove that their answers were correct.
     function claimDishonest(RoomId roomId) public {
         RoomData storage room = rooms[roomId];
+
+        // Player has to first answer the shot, so that number of shots and answers match.
+        // Therefore, dishonesty can only be claimed at the time a shot was supposed to be made.
         require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
         uint8 playerNumber = _getPlayerNumber(room, msg.sender);
         require(room.whoseTurn == playerNumber, "It is not your turn");
@@ -295,22 +307,30 @@ abstract contract Chainship {
         emit DishonestyClaimed(roomId, msg.sender);
     }
 
+    /// Verifies whether the board is valid.
+    /// Returns the commitment to the board.
     function _verifyBoard(uint256 boardRandomness, bool[] calldata board) view internal returns (uint256) {
         require(board.length == BOARD_SIZE * BOARD_SIZE, "Invalid board size");
+
+        // Number of ships of each length. At index i, number of ships of length i+1 is stored.
         uint8[] memory shipCount = new uint8[](MAX_SHIP_LENGTH);
+
+        // Whether the cell has already been checked.
+        // When top-left corner of the ship is checked, it then goes through the whole ship, so it should not be checked again.
         bool[] memory visited = new bool[](board.length);
+
         for(uint8 r = 0; r < BOARD_SIZE; r++) {
             for(uint8 c = 0; c < BOARD_SIZE; c++) {
                 uint16 i = uint16(r) * uint16(BOARD_SIZE) + uint16(c);
                 if(visited[i] || board[i] == false) continue;
                 visited[i] = true;
+
                 bool isHorizontal = c + 1 < BOARD_SIZE && board[i + 1];
                 bool isVertical = r + 1 < BOARD_SIZE && board[i + BOARD_SIZE];
                 require(!(isHorizontal && isVertical), "Invalid ship placement (L-shape)");
                 // Now we treat 1x1 ship as only vertical to simplify checks.
                 if(!isVertical && !isHorizontal) isVertical = true;
 
-                console.log("isVertical", isVertical, r, c);
                 uint8 shipLength = 1;
                 if(isVertical) {
                     if(r != 0) {
@@ -369,6 +389,7 @@ abstract contract Chainship {
                 shipCount[shipLength - 1]++;
             }
         }
+        // Check that number of ships of each length is correct.
         for(uint8 i = 0; i < MAX_SHIP_LENGTH; i++) {
             require(shipCount[i] == SHIP_COUNTS[i], "Invalid ship count");
         }
@@ -411,12 +432,16 @@ abstract contract Chainship {
         return true;
     }
 
+    /// Verifies whether answers are correct given the board of ships and shots.
     function _verifyAnswerCorrectness(bool[] calldata board, Position[] calldata shots, Answer[] calldata answers) pure internal returns (uint256 shotsHash, uint256 answersHash, uint16 noHits) {
         shotsHash = 0;
         answersHash = 0;
         noHits = 0;
         require(shots.length == answers.length, "Shots and answers must have the same length");
+
+        // To not double-count hits, we use a separate array.
         bool[] memory hits = new bool[](board.length);
+
         for(uint256 i = 0; i < shots.length; i++) {
             shotsHash = _iterateShotsHash(shotsHash, i+1, shots[i]);
             answersHash = _iterateAnswersHash(answersHash, i+1, shots[i], answers[i]);
@@ -436,7 +461,9 @@ abstract contract Chainship {
         }
     }
 
-    function _verifyHonesty(RoomData storage room, uint8 playerNumber, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers) internal {
+    /// Checks whether player answered correctly to enemy's shots.
+    /// It checks the board against the commitment, answers and shots against their saved hash and if they are compatible with each other.
+    function _verifyHonesty(RoomData storage room, uint8 playerNumber, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers) internal view {
         require(room.whoseTurn == playerNumber, "It is not your turn");
 
         uint256 boardCommitment = _verifyBoard(boardRandomness, board);
@@ -448,23 +475,24 @@ abstract contract Chainship {
         require(myAnswersHash == room.players[playerNumber].answersHash, "Answers don't match my answers");
     }
 
+    /// Proves that player answered correctly to enemy's shots in case enemy claimed dishonesty.
+    /// It checks the board against the commitment, answers and shots against their saved hash and if they are compatible with each other.
     function proveHonesty(RoomId roomId, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers) public {
         RoomData storage room = rooms[roomId];
-        require(room.status == RoomStatus.DishonestyClaimed, "Room is not in the dishonesty claimed state");
-
         uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        require(room.status == RoomStatus.DishonestyClaimed, "Room is not in the dishonesty claimed state");
+        require(room.whoseTurn == playerNumber, "It is not your turn");
+
         _verifyHonesty(room, playerNumber, boardRandomness, board, enemyShots, myAnswers);
 
         room.status = RoomStatus.Won;
-        _setDeadline(room);
+        _receivePrize(room, playerNumber);
 
         emit HonestyProven(roomId, msg.sender, board);
-
-        receivePrize(room, playerNumber);
     }
 
-    // Verifies whether number of distinct ship hits is equal to number of ship parts.
-    // It does not check whether ships are placed correctly.
+    /// Verifies whether number of distinct ship hits is equal to number of ship parts.
+    /// It does not check whether ships are placed correctly.
     function _verifyShipsSunk(Position[] calldata myShots, Answer[] calldata enemyAnswers) pure internal returns (uint256 myShotsHash, uint256 enemyAnswersHash) {
         myShotsHash = 0;
         enemyAnswersHash = 0;
@@ -488,43 +516,50 @@ abstract contract Chainship {
 
     function proveVictory(RoomId roomId, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
         RoomData storage room = rooms[roomId];
+        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+
+        // Player has to first answer the shot, so that number of shots and answers match.
         require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
 
-        uint8 playerNumber = _getPlayerNumber(room, msg.sender);
+        // Check that player answered correctly to enemy's shots.
         _verifyHonesty(room, playerNumber, boardRandomness, board, enemyShots, myAnswers);
 
+        // Check that player sunk all ships. (Board correctness has already been checked in `_verifyHonesty`.)
         (uint256 myShotsHash, uint256 enemyAnswersHash) = _verifyShipsSunk(myShots, enemyAnswers);
-
         require(myShotsHash == room.players[playerNumber].shotsHash, "Shots don't match my shots");
         require(enemyAnswersHash == room.players[1 - playerNumber].answersHash, "Answers don't match enemy answers");
 
         room.status = RoomStatus.Won;
-        _setDeadline(room);
+        _receivePrize(room, playerNumber);
 
         emit VictoryProven(roomId, msg.sender, board);
-
-        receivePrize(room, playerNumber);
     }
 
     function claimIdle(RoomId roomId) public {
         RoomData storage room = rooms[roomId];
+
+        // `playerNumber` claims that `otherPlayer` didn't respond on time.
         uint8 playerNumber = _getPlayerNumber(room, msg.sender);
         uint8 otherPlayer = 1 - playerNumber;
 
-        // Didn't respond on time
         bool isPastDeadline = block.number > room.answerDeadline;
+        require(isPastDeadline, "Deadline has not passed yet");
+
+        // In case of board submission, each player has to commit in within the deadline that is set when last player joined the room.
         bool isBoardMissing = room.status == RoomStatus.Full && room.players[otherPlayer].boardCommitment == 0;
-        bool isMyTurnMissing = (room.status == RoomStatus.Shooting || room.status == RoomStatus.Answering || room.status == RoomStatus.DishonestyClaimed) && room.whoseTurn == otherPlayer;
-        if(block.number > room.answerDeadline && (
-            room.status == RoomStatus.Full && room.players[otherPlayer].boardCommitment == 0
-            ||
-            (room.status == RoomStatus.Shooting || room.status == RoomStatus.Answering)
-        )) {
-            
-        }
+
+        // In case of shooting, answering or dishonesty claim, only the player given by `whoseTurn` has to respond.
+        bool isHisTurnMissing = (room.status == RoomStatus.Shooting || room.status == RoomStatus.Answering || room.status == RoomStatus.DishonestyClaimed) && room.whoseTurn == otherPlayer;
+
+        require(isBoardMissing || isHisTurnMissing, "It is not enemy's turn to respond");
+
+        room.status = RoomStatus.Won;
+        _receivePrize(room, playerNumber);
+        emit IdleClaimed(roomId, msg.sender);
     }
 
-    function receivePrize(RoomData storage room, uint8 winnerPlayerNumber) internal {
+    function _receivePrize(RoomData storage room, uint8 winnerPlayerNumber) internal {
+        // TODO: Fix reentrancy attack
         address winnerAddress = room.players[winnerPlayerNumber].playerAddress;
         uint256 prize = 2 * room.entryFee - calculateCommission(room.entryFee);
         payable(winnerAddress).transfer(prize);
