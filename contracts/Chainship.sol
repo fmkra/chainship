@@ -565,6 +565,8 @@ abstract contract Chainship {
         payable(winnerAddress).transfer(prize);
         emit PrizeReceived(winnerAddress, prize);
     }
+
+    // TODO: Get funds from the contract
 }
 
 abstract contract ChainshipWithMulticall is Chainship {

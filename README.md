@@ -1,9 +1,25 @@
-0xe34597eC34910744DdCBdB10EEc8092503aBFAd4
-0xc3547e2d53abf7e2ff10749dc5e998498b8aaf607f567bbd6f33a3ffcbdc2202
-Gas Limit & Usage by Txn: 1,854,711 | 1,838,949 (99.15%)
-0.003534274470341727 ETH
+## Deployment
 
-0xb2de7e4e1586F8C51b1f28Cd32C49f64C80943df
-0x7227d464f82a71bfbbfc9792076983b13dd420606379270e344853deba0d155a
-Gas Limit & Usage by Txn: 1,854,711 | 1,838,949 (99.15%)
-0.003878004018827274 ETH
+Contracts:
+
+```
+npx hardhat node
+npx hardhat ignition deploy ignition/modules/Chainship.ts --network localhost
+```
+
+Frontend:
+
+```
+cd frontend
+pnpm install
+pnpm dev
+```
+
+## TODOs:
+
+-   Update architecture file
+-   Automatic deployments
+-   Frontend should display list of rooms that player has ever joined and their statuses
+-   Claim idle handling on frontend side
+-   More tests for contracts
+-   Playwright tests
