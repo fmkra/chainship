@@ -19,9 +19,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return (
         <WagmiProvider config={config}>
             <QueryClientProvider client={queryClient}>
-                <Topbar />
-                {children}
-                <NotificationToaster />
+                <div className="flex min-h-screen flex-col bg-slate-200">
+                    <Topbar />
+                    <main className="flex flex-grow items-center justify-center p-4 sm:p-8">{children}</main>
+                    <NotificationToaster />
+                </div>
             </QueryClientProvider>
         </WagmiProvider>
     )

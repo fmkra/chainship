@@ -28,11 +28,13 @@ export function Topbar() {
         }
     }
 
+    const showLeaveRoom = panel === 'waitForPlayer' || panel === 'board' || panel === 'game'
+
     return (
-        <div className="p-4 border-b border-gray-800 flex justify-end items-center bg-white">
-            {panel !== 'select' && (
-                <Button onClick={leaveRoom} className="mr-auto">
-                    Back
+        <div className="p-4 border-b border-slate-300 flex justify-end items-center bg-white">
+            {showLeaveRoom && (
+                <Button onClick={leaveRoom} className="mr-auto" variant="red">
+                    Leave Room
                 </Button>
             )}
             {!isConnected ? (

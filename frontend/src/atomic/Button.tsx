@@ -2,7 +2,7 @@ import { ButtonHTMLAttributes } from 'react'
 import { cn } from '../utils'
 
 interface MyButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: 'blue' | 'red' | 'green' | 'orange'
+    variant?: 'blue' | 'red' | 'green' | 'orange' | 'gray'
 }
 
 const defaultVariant = 'blue'
@@ -12,6 +12,7 @@ const variants: Record<NonNullable<MyButtonProps['variant']>, string> = {
     red: 'bg-red-500 hover:bg-red-600',
     green: 'bg-green-500 hover:bg-green-600',
     orange: 'bg-orange-500 hover:bg-orange-600',
+    gray: 'bg-slate-200 text-slate-800 hover:bg-slate-300',
 }
 
 const Button = ({ variant, ...buttonProps }: MyButtonProps) => {

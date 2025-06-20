@@ -5,12 +5,15 @@ import { getCommitPair, keccakHashUint256s, safeBigInt } from '../utils'
 import { useStore } from '../store'
 import Button from '../atomic/button'
 import { useNotificationStore } from '../atomic/Toaster'
+import Input from '../atomic/Input'
+import { formatEther } from 'viem'
 
 export default function RoomJoin() {
-    const { joinRoom } = useStore()
+    const { joinRoom, setPanel } = useStore()
     const { addNotification } = useNotificationStore()
     const [roomSecret, setRoomSecret] = useState<string>('')
     const [randomness, randomnessCommitment] = useMemo(() => getCommitPair(), [])
+
     const roomId = useMemo(() => {
         const rs = safeBigInt(roomSecret)
         if (rs === null) return null
@@ -22,46 +25,79 @@ export default function RoomJoin() {
         functionName: 'getRoomInfo',
         args: roomId === null ? undefined : [BigInt(roomId)],
     })
-    const fee = roomInfo?.[1]
+    const entryFeeWei = roomInfo?.[1]
     const opponent = roomInfo?.[2]
 
-    const { writeContract } = useWriteContract({
+    const { isPending, writeContract } = useWriteContract({
         mutation: {
             onSuccess: () => {
-                joinRoom('board', roomId!, opponent!, fee!.toString(), randomness, roomSecret)
+                addNotification('Joining room transaction sent!', 'info')
+                const entryFeeEth = formatEther(entryFeeWei!)
+                joinRoom('board', roomId!, opponent!, entryFeeEth, randomness, roomSecret)
             },
             onError: (error) => {
-                addNotification(error.name + ': ' + error.message, 'error')
+                const shortMessage = error.message.split('\n')[0]
+                addNotification(`${error.name}: ${shortMessage}`, 'error')
             },
         },
     })
 
     const join = () => {
-        if (typeof roomInfo?.[1] !== 'bigint') return
+        if (typeof entryFeeWei !== 'bigint') {
+            addNotification('Could not find room or entry fee.', 'error')
+            return
+        }
         writeContract({
             ...contractConfig,
             functionName: 'joinRoom',
             args: [BigInt(roomSecret), BigInt(randomnessCommitment)],
-            value: fee,
+            value: entryFeeWei,
         })
     }
 
     return (
-        <div>
-            <h1>Join room</h1>
+        <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
+            <div className="text-center">
+                <h1 className="text-3xl font-bold text-slate-800">Join a Room</h1>
+                <p className="mt-2 text-slate-500">Enter the secret code you received from your friend.</p>
+            </div>
 
-            <input
-                type="text"
-                value={roomSecret}
-                onChange={(e) => setRoomSecret(e.target.value)}
-                className="border border-gray-300 rounded-md p-2"
-            />
+            <div className="mt-8 space-y-6">
+                <Input
+                    id="roomSecret"
+                    label="Room Secret"
+                    type="text"
+                    value={roomSecret}
+                    onChange={(e) => setRoomSecret(e.target.value)}
+                    placeholder="Paste the secret code here"
+                />
 
-            <p>Entry fee: {isLoading ? 'Loading...' : fee?.toString()}</p>
+                <div className="rounded-md bg-slate-50 p-3">
+                    <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-slate-600">Entry fee:</span>
+                        <span className="font-mono text-slate-800">
+                            {isLoading
+                                ? 'Loading...'
+                                : entryFeeWei !== undefined
+                                ? `${formatEther(entryFeeWei)} ETH`
+                                : 'Enter a valid secret'}
+                        </span>
+                    </div>
+                </div>
+            </div>
 
-            <Button onClick={join} disabled={isLoading}>
-                Join
-            </Button>
+            <div className="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+                <Button variant="gray" onClick={() => setPanel('select')}>
+                    Back
+                </Button>
+                <Button
+                    variant="blue"
+                    onClick={join}
+                    disabled={isLoading || isPending || typeof entryFeeWei !== 'bigint'}
+                >
+                    {isPending ? 'Joining...' : 'Join Room'}
+                </Button>
+            </div>
         </div>
     )
 }

@@ -341,7 +341,7 @@ const BattleshipGame = ({
     }
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 p-4 sm:p-6 w-full max-w-7xl">
+        <div className="flex flex-col lg:flex-row gap-8 p-2 m-2 sm:p-4 w-full max-w-7xl bg-slate-100 rounded-lg">
             <div className="w-full lg:w-72 flex flex-col justify-between">
                 <div>
                     {gameStatus === OptionalPlayer.None && (

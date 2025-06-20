@@ -33,7 +33,7 @@ export default function Board() {
     })
 
     return (
-        <div>
+        <div className="w-full flex justify-center">
             <BattleshipSetup
                 status={status}
                 onSubmitBoard={(board) => {
