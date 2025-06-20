@@ -10,6 +10,3 @@ const ChainshipModule = buildModule('ChainshipModule', (m) => {
 })
 
 export default ChainshipModule
-
-// 1838945
-// 1838945

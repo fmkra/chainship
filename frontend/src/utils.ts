@@ -1,11 +1,11 @@
-import { ethers, id } from 'ethers'
+import { ethers } from 'ethers'
 import { ShotCoordinate, ShotResultInt, ShotResultType } from './store'
 import clsx, { ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
 export function keccakHashUint256s(...args: (bigint | undefined)[]): string {
     const preimage = args
-        .filter((a) => a !== undefined)
+        .filter((a): a is bigint => a !== undefined)
         .map((a) => a.toString(16).padStart(64, '0'))
         .join('')
     return ethers.keccak256('0x' + preimage).padStart(64, '0')

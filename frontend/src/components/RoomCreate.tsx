@@ -3,7 +3,7 @@ import { useWriteContract } from 'wagmi'
 import { contractConfig } from '../ContractConfig'
 import { getCommitPair, safeParseEther } from '../utils'
 import { useStore } from '../store'
-import Button from '../atomic/button'
+import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 import Input from '../atomic/Input'
 

@@ -1,4 +1,4 @@
-import Button from '../atomic/button'
+import Button from '../atomic/Button'
 import { useStore } from '../store'
 
 export default function Main() {

@@ -1,5 +1,5 @@
 import { WagmiProvider, createConfig, http } from 'wagmi'
-import { localhost } from 'wagmi/chains'
+import { localhost, sepolia } from 'wagmi/chains'
 import { injected } from '@wagmi/connectors'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Topbar } from './Topbar'
@@ -8,9 +8,10 @@ import NotificationToaster from '../atomic/Toaster'
 export const queryClient = new QueryClient()
 
 export const config = createConfig({
-    chains: [localhost],
+    chains: [localhost, sepolia],
     transports: {
         [localhost.id]: http(),
+        [sepolia.id]: http('https://ethereum-sepolia-rpc.publicnode.com'),
     },
     connectors: [injected()],
 })

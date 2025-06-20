@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { config } from './Layout'
 import { useStore } from '../store'
-import Button from '../atomic/button'
+import Button from '../atomic/Button'
 
 export function Topbar() {
     const { panel, leaveRoom } = useStore()

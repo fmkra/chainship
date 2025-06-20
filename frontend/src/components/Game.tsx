@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, ButtonHTMLAttributes } from 'react'
+import { useMemo } from 'react'
 import {
     BOARD_SIZE,
     ShotCoordinate,
@@ -12,7 +12,7 @@ import {
 } from '../store'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
 import { contractConfig } from '../ContractConfig'
-import Button from '../atomic/button'
+import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 
 export default function Game() {

@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { cn, commitBoard, getRandomUint256 } from '../utils'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
 import { contractConfig } from '../ContractConfig'
-import Button from '../atomic/button'
+import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 
 export default function Board() {
