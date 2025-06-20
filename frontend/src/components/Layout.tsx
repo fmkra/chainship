@@ -3,6 +3,7 @@ import { localhost } from 'wagmi/chains'
 import { injected } from '@wagmi/connectors'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Topbar } from './Topbar'
+import NotificationToaster from '../atomic/Toaster'
 
 export const queryClient = new QueryClient()
 
@@ -20,6 +21,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <QueryClientProvider client={queryClient}>
                 <Topbar />
                 {children}
+                <NotificationToaster />
             </QueryClientProvider>
         </WagmiProvider>
     )

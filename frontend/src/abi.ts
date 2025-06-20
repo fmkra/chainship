@@ -275,6 +275,12 @@ export const abi = [
                 name: 'player',
                 type: 'address',
             },
+            {
+                indexed: false,
+                internalType: 'bool[]',
+                name: 'board',
+                type: 'bool[]',
+            },
         ],
         name: 'VictoryProven',
         type: 'event',

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { config } from './Layout'
+import { useStore } from '../store'
+import Button from '../atomic/button'
 
 export function Topbar() {
+    const { panel, leaveRoom } = useStore()
     const [isConnected, setIsConnected] = useState(false)
     const [address, setAddress] = useState<string>('')
 
@@ -26,25 +29,23 @@ export function Topbar() {
     }
 
     return (
-        <div className="p-4 border-b border-gray-800 flex justify-end items-center">
+        <div className="p-4 border-b border-gray-800 flex justify-end items-center bg-white">
+            {panel !== 'select' && (
+                <Button onClick={leaveRoom} className="mr-auto">
+                    Back
+                </Button>
+            )}
             {!isConnected ? (
-                <button
-                    onClick={connectWallet}
-                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                    id="wallet-button"
-                >
+                <Button onClick={connectWallet} id="wallet-button">
                     Connect Wallet
-                </button>
+                </Button>
             ) : (
                 <>
                     <p id="account">Connected to: {address}</p>
                     <div className="space-x-4">
-                        <button
-                            onClick={disconnectWallet}
-                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-                        >
+                        <Button variant="red" onClick={disconnectWallet}>
                             Disconnect
-                        </button>
+                        </Button>
                     </div>
                 </>
             )}

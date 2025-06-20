@@ -1,15 +1,24 @@
 import { BOARD_SIZE, ShipConfig, SHIPS_CONFIG, useStore } from '../store'
 import { useState, useMemo } from 'react'
-import { commitBoard, getRandomUint256 } from '../utils'
+import { cn, commitBoard, getRandomUint256 } from '../utils'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
 import { contractConfig } from '../ContractConfig'
+import Button from '../atomic/button'
+import { useNotificationStore } from '../atomic/Toaster'
 
 export default function Board() {
     const { roomData, activeRoomId, submitBoard, startGame } = useStore()
+    const { addNotification } = useNotificationStore()
     const boardRandomness = useMemo(getRandomUint256, [])
     const room = roomData[activeRoomId!]
 
-    const { writeContract, status } = useWriteContract()
+    const { writeContract, status } = useWriteContract({
+        mutation: {
+            onError: (error) => {
+                addNotification(error.name + ': ' + error.message, 'error')
+            },
+        },
+    })
 
     useWatchContractEvent({
         ...contractConfig,
@@ -25,10 +34,6 @@ export default function Board() {
 
     return (
         <div>
-            <h1>Inside room {activeRoomId}</h1>
-            <p>Randomness: {room?.randomness}</p>
-            <p>Opponent: {room?.opponent}</p>
-
             <BattleshipSetup
                 status={status}
                 onSubmitBoard={(board) => {
@@ -175,7 +180,7 @@ const BattleshipSetup = ({ onSubmitBoard, status }: BattleshipSetupProps) => {
     }
 
     return (
-        <div className="flex flex-col md:flex-row gap-8 p-4 sm:p-6 bg-slate-100 rounded-lg shadow-lg w-full max-w-4xl">
+        <div className="flex flex-col md:flex-row gap-8 p-4 sm:p-6 bg-slate-100 rounded-lg w-full max-w-4xl">
             <div className="w-full md:w-64 flex flex-col justify-between">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-300 pb-2 mb-4">
@@ -208,28 +213,23 @@ const BattleshipSetup = ({ onSubmitBoard, status }: BattleshipSetupProps) => {
                 </div>
                 <div className="flex flex-col gap-3 mt-6">
                     {isSetupComplete ? (
-                        <button
+                        <Button
                             onClick={handleSubmit}
                             disabled={status === 'pending' || status === 'success'}
-                            className="w-full px-4 py-2 font-semibold text-white bg-green-500 rounded-md shadow-sm hover:bg-green-600 transition-colors"
+                            variant="green"
                         >
                             Submit Board
-                        </button>
+                        </Button>
                     ) : (
-                        <button
-                            onClick={handleRotate}
-                            className="w-full px-4 py-2 font-semibold text-white bg-blue-500 rounded-md shadow-sm hover:bg-blue-600 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed"
-                        >
-                            Rotate Ship
-                        </button>
+                        <Button onClick={handleRotate}>Rotate Ship</Button>
                     )}
-                    <button
+                    <Button
                         onClick={handleReset}
                         disabled={status === 'pending' || status === 'success'}
-                        className="w-full px-4 py-2 font-semibold text-white bg-orange-500 rounded-md shadow-sm hover:bg-orange-600 transition-colors"
+                        variant="orange"
                     >
                         Reset Board
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -243,11 +243,13 @@ const BattleshipSetup = ({ onSubmitBoard, status }: BattleshipSetupProps) => {
                 >
                     {displayBoard.map((row, rowIndex) =>
                         row.map((cell, colIndex) => (
-                            <div
+                            <button
                                 key={`${rowIndex}-${colIndex}`}
-                                className={`border border-slate-300 transition-colors ${
-                                    isSetupComplete ? '' : 'cursor-pointer'
-                                } ${getCellClass(cell)}`}
+                                className={cn(
+                                    'border border-slate-300 transition-colors',
+                                    isSetupComplete || 'hover:cursor-pointer',
+                                    getCellClass(cell)
+                                )}
                                 onClick={() => handleCellClick(rowIndex, colIndex)}
                                 onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                             />

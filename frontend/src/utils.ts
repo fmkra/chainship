@@ -1,5 +1,7 @@
 import { ethers, id } from 'ethers'
 import { ShotCoordinate, ShotResultInt, ShotResultType } from './store'
+import clsx, { ClassValue } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 
 export function keccakHashUint256s(...args: (bigint | undefined)[]): string {
     const preimage = args
@@ -110,3 +112,5 @@ function findConnectedShipCells(board: boolean[][], startX: number, startY: numb
     dfs(startX, startY)
     return shipCells
 }
+
+export const cn = (...classes: ClassValue[]) => twMerge(clsx(...classes))

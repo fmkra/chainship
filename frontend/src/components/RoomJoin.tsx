@@ -3,9 +3,12 @@ import { contractConfig } from '../ContractConfig'
 import { useMemo, useState } from 'react'
 import { getCommitPair, keccakHashUint256s, safeBigInt } from '../utils'
 import { useStore } from '../store'
+import Button from '../atomic/button'
+import { useNotificationStore } from '../atomic/Toaster'
 
 export default function RoomJoin() {
-    const { setPanel, joinRoom } = useStore()
+    const { joinRoom } = useStore()
+    const { addNotification } = useNotificationStore()
     const [roomSecret, setRoomSecret] = useState<string>('')
     const [randomness, randomnessCommitment] = useMemo(() => getCommitPair(), [])
     const roomId = useMemo(() => {
@@ -22,10 +25,13 @@ export default function RoomJoin() {
     const fee = roomInfo?.[1]
     const opponent = roomInfo?.[2]
 
-    const { isPending, writeContract } = useWriteContract({
+    const { writeContract } = useWriteContract({
         mutation: {
             onSuccess: () => {
                 joinRoom('board', roomId!, opponent!, fee!.toString(), randomness, roomSecret)
+            },
+            onError: (error) => {
+                addNotification(error.name + ': ' + error.message, 'error')
             },
         },
     })
@@ -53,9 +59,9 @@ export default function RoomJoin() {
 
             <p>Entry fee: {isLoading ? 'Loading...' : fee?.toString()}</p>
 
-            <button onClick={join} disabled={isLoading} className="bg-blue-500 text-white p-2 rounded-md">
+            <Button onClick={join} disabled={isLoading}>
                 Join
-            </button>
+            </Button>
         </div>
     )
 }

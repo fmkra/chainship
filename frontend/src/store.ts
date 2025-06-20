@@ -47,6 +47,8 @@ export const OptionalPlayer = {
 
 export type OptionalPlayerInt = (typeof OptionalPlayer)[keyof typeof OptionalPlayer]
 
+export type VictoryReason = null | 'waiting-for-proof' | 'dishonesty-claimed' | 'victory'
+
 export interface State {
     panel: 'select' | 'create' | 'waitForPlayer' | 'join' | 'board' | 'game'
     activeRoomId?: string
@@ -65,6 +67,7 @@ export interface State {
             myShotAnswers: ShotResult[]
             enemyShotAnswers: ShotResult[]
             winner: OptionalPlayerInt
+            victoryReason: VictoryReason
             dishonestyClaimed: OptionalPlayerInt // who WAS ACCUSED of cheating
             provenEnemyBoard?: boolean[][]
         }
@@ -73,6 +76,7 @@ export interface State {
 
 export interface Actions {
     setPanel: (panel: State['panel']) => void
+    leaveRoom: () => void
     joinRoom: (
         panel: State['panel'],
         roomId: string,
@@ -86,11 +90,10 @@ export interface Actions {
     startGame: (startingPlayer: string) => void
     setIsMyTurn: (isMyTurn: boolean) => void
     updateShots: (shots: [string, number, ShotCoordinate][]) => void
-    updateAnswers: (answers: [string, number, ShotCoordinate, ShotResultInt][]) => void
+    updateAnswers: (answers: [string | null, number, ShotCoordinate, ShotResultInt][]) => void // when player is null, it means self
     generateAnswer: (position: ShotCoordinate) => ShotResultInt
-    leaveRoom: () => void
     claimDishonest: (player: string) => void
-    setHonestyProven: (board: boolean[][]) => void
+    setVictory: (player: string, victoryReason: 'dishonesty-claimed' | 'victory', board: boolean[][]) => void
 }
 
 export const useStore = create<State & Actions>()(
@@ -118,6 +121,7 @@ export const useStore = create<State & Actions>()(
                             enemyShotAnswers: [],
                             winner: OptionalPlayer.None,
                             dishonestyClaimed: OptionalPlayer.None,
+                            victoryReason: null,
                         },
                     },
                 })),
@@ -202,7 +206,7 @@ export const useStore = create<State & Actions>()(
                         },
                     }
                 }),
-            updateAnswers: (answers: [string, number, ShotCoordinate, ShotResultInt][]) =>
+            updateAnswers: (answers: [string | null, number, ShotCoordinate, ShotResultInt][]) =>
                 set((state) => {
                     const room = state.roomData[state.activeRoomId!]
                     const newMyAnswers = [...room.myShotAnswers]
@@ -216,6 +220,7 @@ export const useStore = create<State & Actions>()(
                         newAnswers[noShots - 1] = { ...position, answer }
                     }
 
+                    console.log('newMyAnswers', newMyAnswers)
                     for (const answer of newMyAnswers) {
                         if (answer.answer !== ShotResultType.Miss) {
                             noEnemyHits++
@@ -234,6 +239,10 @@ export const useStore = create<State & Actions>()(
                             ? OptionalPlayer.Opponent
                             : OptionalPlayer.None
 
+                    let victoryReason = room.victoryReason
+                    if (winner !== OptionalPlayer.None && victoryReason === null) {
+                        victoryReason = 'waiting-for-proof'
+                    }
                     return {
                         ...state,
                         roomData: {
@@ -241,6 +250,7 @@ export const useStore = create<State & Actions>()(
                             [state.activeRoomId!]: {
                                 ...room,
                                 winner,
+                                victoryReason,
                                 myShotAnswers: newMyAnswers,
                                 enemyShotAnswers: newEnemyAnswers,
                             },
@@ -280,14 +290,18 @@ export const useStore = create<State & Actions>()(
                     },
                 }))
             },
-            setHonestyProven: (board) => {
+            setVictory: (player, victoryReason, board) => {
+                const s = get()
+                const isEnemy = player === s.roomData[s.activeRoomId!].opponent
                 set((state) => ({
                     ...state,
                     roomData: {
                         ...state.roomData,
                         [state.activeRoomId!]: {
                             ...state.roomData[state.activeRoomId!],
-                            provenEnemyBoard: board,
+                            provenEnemyBoard: isEnemy ? board : undefined,
+                            winner: isEnemy ? OptionalPlayer.Opponent : OptionalPlayer.Self,
+                            victoryReason,
                         },
                     },
                 }))

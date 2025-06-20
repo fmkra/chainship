@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, ButtonHTMLAttributes } from 'react'
 import {
     BOARD_SIZE,
     ShotCoordinate,
@@ -8,9 +8,12 @@ import {
     useStore,
     OptionalPlayer,
     OptionalPlayerInt,
+    VictoryReason,
 } from '../store'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
 import { contractConfig } from '../ContractConfig'
+import Button from '../atomic/button'
+import { useNotificationStore } from '../atomic/Toaster'
 
 export default function Game() {
     const {
@@ -22,16 +25,32 @@ export default function Game() {
         generateAnswer,
         leaveRoom,
         claimDishonest,
-        setHonestyProven,
+        setVictory,
     } = useStore()
+    const { addNotification } = useNotificationStore()
     const room = roomData[activeRoomId!]
     const myBoard = room.myBoard!
     const isMyTurn = room.isMyTurn
 
-    const { writeContract, isPending } = useWriteContract({
+    const { writeContract, isPending: isPending1 } = useWriteContract({
         mutation: {
             onSuccess: () => {
                 setIsMyTurn(false)
+            },
+            onError: (error) => {
+                addNotification(error.name + ': ' + error.message, 'error')
+            },
+        },
+    })
+
+    const { writeContract: writeContractWithRevert, isPending: isPending2 } = useWriteContract({
+        mutation: {
+            onSuccess: () => {
+                setIsMyTurn(false)
+            },
+            onError: (error) => {
+                addNotification(error.name + ': ' + error.message, 'error')
+                // TODO: revert updateAnswers
             },
         },
     })
@@ -40,6 +59,11 @@ export default function Game() {
         if (room.enemyShots.length > room.myShotAnswers.length) {
             const answerPosition = room.enemyShots[room.enemyShots.length - 1]
             const answer = generateAnswer(answerPosition)
+
+            // Optimistically update answers to fix issue that UI shows that it's my turn
+            // when we already sent answer but didn't receive the event yet
+            updateAnswers([[null, room.myShotAnswers.length + 1, answerPosition, answer]])
+
             writeContract({
                 ...contractConfig,
                 functionName: 'answerAndShoot',
@@ -149,24 +173,37 @@ export default function Game() {
         },
     })
 
+    const boardMake2d = (board: readonly boolean[]) => {
+        return board.reduce((acc, val, idx) => {
+            if (idx % BOARD_SIZE === 0) {
+                acc.push([])
+            }
+            acc[acc.length - 1].push(val)
+            return acc
+        }, [] as boolean[][])
+    }
+
     useWatchContractEvent({
         ...contractConfig,
         eventName: 'HonestyProven',
         onLogs: (logs) => {
-            console.log('=== HonestyProven', logs)
-            logs.filter((log) => log.args.roomId === BigInt(activeRoomId!))
-                .map((log) => {
-                    const board = log.args.board!
-                    const board2d = board.reduce((acc, val, idx) => {
-                        if (idx % BOARD_SIZE === 0) {
-                            acc.push([])
-                        }
-                        acc[acc.length - 1].push(val)
-                        return acc
-                    }, [] as boolean[][])
-                    return board2d
-                })
-                .forEach(setHonestyProven)
+            logs.filter((log) => log.args.roomId === BigInt(activeRoomId!)).forEach((log) => {
+                const board = log.args.board!
+                const board2d = boardMake2d(board)
+                setVictory(log.args.player!, 'dishonesty-claimed', board2d)
+            })
+        },
+    })
+
+    useWatchContractEvent({
+        ...contractConfig,
+        eventName: 'VictoryProven',
+        onLogs: (logs) => {
+            logs.filter((log) => log.args.roomId === BigInt(activeRoomId!)).forEach((log) => {
+                const board = log.args.board!
+                const board2d = boardMake2d(board)
+                setVictory(log.args.player!, 'dishonesty-claimed', board2d)
+            })
         },
     })
 
@@ -178,8 +215,9 @@ export default function Game() {
             isPlayerTurn={isMyTurn}
             gameStatus={room.winner}
             dishonestyClaimed={room.dishonestyClaimed}
-            isPending={isPending}
+            isPending={isPending1 || isPending2}
             enemyBoard={room.provenEnemyBoard}
+            victoryReason={room.victoryReason}
             onPlayerShot={onShot}
             onClaimVictory={claimVictory}
             onClaimDishonest={sendDishonest}
@@ -207,6 +245,7 @@ interface BattleshipGameProps {
     dishonestyClaimed: OptionalPlayerInt
     isPending: boolean
     enemyBoard?: boolean[][]
+    victoryReason: VictoryReason
     onPlayerShot: (row: number, col: number) => void
     onClaimVictory: () => void
     onClaimDishonest: () => void
@@ -227,6 +266,7 @@ const BattleshipGame = ({
     gameStatus,
     dishonestyClaimed,
     enemyBoard,
+    victoryReason,
     isPending,
     onPlayerShot,
     onClaimVictory,
@@ -301,12 +341,9 @@ const BattleshipGame = ({
     }
 
     return (
-        <div className="flex flex-col lg:flex-row gap-8 p-4 sm:p-6 bg-slate-100 rounded-lg shadow-lg w-full max-w-7xl">
+        <div className="flex flex-col lg:flex-row gap-8 p-4 sm:p-6 w-full max-w-7xl">
             <div className="w-full lg:w-72 flex flex-col justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800 border-b-2 border-slate-300 pb-2 mb-4">
-                        The Battle
-                    </h2>
                     {gameStatus === OptionalPlayer.None && (
                         <div
                             className={`p-4 rounded-md text-center ${
@@ -324,12 +361,9 @@ const BattleshipGame = ({
                                     {isPlayerTurn && playerShotResults.length > 0 && (
                                         <div className="flex gap-2 mx-auto items-center justify-center">
                                             <p>Did the enemy answer incorrectly?</p>
-                                            <button
-                                                className="bg-red-500 text-white px-4 py-2 rounded-md"
-                                                onClick={onClaimDishonest}
-                                            >
+                                            <Button variant="red" onClick={onClaimDishonest}>
                                                 Accuse of cheating
-                                            </button>
+                                            </Button>
                                         </div>
                                     )}
                                 </>
@@ -338,12 +372,9 @@ const BattleshipGame = ({
                                     {dishonestyClaimed === OptionalPlayer.Self ? (
                                         <p>
                                             Enemy accused you of cheating!{' '}
-                                            <button
-                                                className="bg-green-500 text-white px-4 py-2 rounded-md"
-                                                onClick={onProveHonesty}
-                                            >
+                                            <Button variant="green" onClick={onProveHonesty}>
                                                 Prove honesty
-                                            </button>
+                                            </Button>
                                         </p>
                                     ) : (
                                         'You accused enemy of cheating!'
@@ -363,23 +394,15 @@ const BattleshipGame = ({
                             <h3 className="font-bold text-2xl">
                                 {gameStatus === OptionalPlayer.Self ? 'You Win!' : 'You Lose!'}
                             </h3>
-                            {gameStatus === OptionalPlayer.Self ? (
-                                <button
-                                    className="bg-blue-500 text-white px-4 py-2 rounded-md"
-                                    onClick={onClaimVictory}
-                                >
-                                    Claim Victory
-                                </button>
+
+                            {gameStatus === OptionalPlayer.Opponent && victoryReason === 'waiting-for-proof' && (
+                                <p>Waiting for enemy to claim victory...</p>
+                            )}
+
+                            {gameStatus === OptionalPlayer.Self && victoryReason === 'waiting-for-proof' ? (
+                                <Button onClick={onClaimVictory}>Claim Victory</Button>
                             ) : (
-                                <>
-                                    <p>Waiting for enemy to claim victory...</p>
-                                    <button
-                                        className="bg-red-500 text-white px-4 py-2 rounded-md"
-                                        onClick={onLeaveRoom}
-                                    >
-                                        Leave room
-                                    </button>
-                                </>
+                                <Button onClick={onLeaveRoom}>Leave room</Button>
                             )}
                         </div>
                     )}

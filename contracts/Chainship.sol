@@ -119,7 +119,7 @@ abstract contract Chainship {
     event ShotAnswered(RoomId roomId, address player, uint256 noShots, Position position, Answer answer, uint256 newAnswersCommitment);
     event DishonestyClaimed(RoomId roomId, address player);
     event HonestyProven(RoomId roomId, address player, bool[] board);
-    event VictoryProven(RoomId roomId, address player);
+    event VictoryProven(RoomId roomId, address player, bool[] board);
     event PrizeReceived(address player, uint256 prize);
 
     function _setDeadline(RoomData storage room) internal {
@@ -501,7 +501,7 @@ abstract contract Chainship {
         room.status = RoomStatus.Won;
         _setDeadline(room);
 
-        emit VictoryProven(roomId, msg.sender);
+        emit VictoryProven(roomId, msg.sender, board);
 
         receivePrize(room, playerNumber);
     }
