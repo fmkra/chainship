@@ -22,6 +22,7 @@ export default function Game() {
         setIsMyTurn,
         updateShots,
         updateAnswers,
+        removeLastAnswer,
         generateAnswer,
         leaveRoom,
         claimDishonest,
@@ -50,7 +51,10 @@ export default function Game() {
             },
             onError: (error) => {
                 addNotification(error.name + ': ' + error.message, 'error')
-                // TODO: revert updateAnswers
+
+                // It is only called after updateAnswers, so we can assume that last element is the one that failed
+                removeLastAnswer()
+                console.log('==== REMOVED')
             },
         },
     })
@@ -62,9 +66,11 @@ export default function Game() {
 
             // Optimistically update answers to fix issue that UI shows that it's my turn
             // when we already sent answer but didn't receive the event yet
+            // TODO: handle this in different way, because now, when transaction window is shown,
+            // TODO: it goes to "Opponent's turn" state
             updateAnswers([[null, room.myShotAnswers.length + 1, answerPosition, answer]])
 
-            writeContract({
+            writeContractWithRevert({
                 ...contractConfig,
                 functionName: 'answerAndShoot',
                 args: [BigInt(activeRoomId!), { x: answerPosition.x, y: answerPosition.y }, answer, { x, y }],
@@ -367,19 +373,18 @@ const BattleshipGame = ({
                                         </div>
                                     )}
                                 </>
+                            ) : dishonestyClaimed === OptionalPlayer.Self ? (
+                                <>
+                                    <h3 className="font-bold text-lg">Enemy accused you of cheating!</h3>
+                                    <Button variant="green" onClick={onProveHonesty}>
+                                        Prove honesty
+                                    </Button>
+                                </>
                             ) : (
-                                <h3 className="font-bold text-lg">
-                                    {dishonestyClaimed === OptionalPlayer.Self ? (
-                                        <p>
-                                            Enemy accused you of cheating!{' '}
-                                            <Button variant="green" onClick={onProveHonesty}>
-                                                Prove honesty
-                                            </Button>
-                                        </p>
-                                    ) : (
-                                        'You accused enemy of cheating!'
-                                    )}
-                                </h3>
+                                <>
+                                    <h3 className="font-bold text-lg">You accused enemy of cheating!</h3>
+                                    <p>Waiting for enemy to prove honesty...</p>
+                                </>
                             )}
                         </div>
                     )}
@@ -392,7 +397,7 @@ const BattleshipGame = ({
                             }`}
                         >
                             <h3 className="font-bold text-2xl">
-                                {gameStatus === OptionalPlayer.Self ? 'You Win!' : 'You Lose!'}
+                                {gameStatus === OptionalPlayer.Self ? 'You Won!' : 'You Lost!'}
                             </h3>
 
                             {gameStatus === OptionalPlayer.Opponent && victoryReason === 'waiting-for-proof' && (
@@ -437,7 +442,8 @@ const BattleshipGame = ({
                                     isPlayerTurn &&
                                     !isPending &&
                                     shot === ShotState.Untouched &&
-                                    gameStatus === OptionalPlayer.None
+                                    gameStatus === OptionalPlayer.None &&
+                                    dishonestyClaimed === OptionalPlayer.None
                                 return (
                                     <button
                                         key={`${rIdx}-${cIdx}`}

@@ -90,6 +90,7 @@ export interface Actions {
     setIsMyTurn: (isMyTurn: boolean) => void
     updateShots: (shots: [string, number, ShotCoordinate][]) => void
     updateAnswers: (answers: [string | null, number, ShotCoordinate, ShotResultInt][]) => void // when player is null, it means self
+    removeLastAnswer: () => void
     generateAnswer: (position: ShotCoordinate) => ShotResultInt
     claimDishonest: (player: string) => void
     setVictory: (player: string, victoryReason: 'dishonesty-claimed' | 'victory', board: boolean[][]) => void
@@ -219,7 +220,6 @@ export const useStore = create<State & Actions>()(
                         newAnswers[noShots - 1] = { ...position, answer }
                     }
 
-                    console.log('newMyAnswers', newMyAnswers)
                     for (const answer of newMyAnswers) {
                         if (answer.answer !== ShotResultType.Miss) {
                             noEnemyHits++
@@ -256,6 +256,17 @@ export const useStore = create<State & Actions>()(
                         },
                     }
                 }),
+            removeLastAnswer: () =>
+                set((state) => ({
+                    ...state,
+                    roomData: {
+                        ...state.roomData,
+                        [state.activeRoomId!]: {
+                            ...state.roomData[state.activeRoomId!],
+                            myShotAnswers: state.roomData[state.activeRoomId!].myShotAnswers.slice(0, -1),
+                        },
+                    },
+                })),
             generateAnswer: (position) => {
                 const s = get()
                 const room = s.roomData[s.activeRoomId!]
