@@ -114,3 +114,21 @@ function findConnectedShipCells(board: boolean[][], startX: number, startY: numb
 }
 
 export const cn = (...classes: ClassValue[]) => twMerge(clsx(...classes))
+
+export const shorten = (text: string, maxPrefixLength: number = 5, maxSuffixLength: number = 3) => {
+    if (text.length <= maxPrefixLength + maxSuffixLength) return text
+    return text.slice(0, maxPrefixLength) + '...' + text.slice(-maxSuffixLength)
+}
+
+export function filterLog(
+    logAddress: string,
+    logRoomId: bigint | undefined,
+    configAddress: string | undefined,
+    configRoomId: string | undefined
+) {
+    return (
+        logAddress.toLowerCase() === (configAddress ?? '').toLowerCase() &&
+        configRoomId !== undefined &&
+        logRoomId === BigInt(configRoomId)
+    )
+}

@@ -1,21 +1,26 @@
 import { useState } from 'react'
 import { useWatchContractEvent } from 'wagmi'
 import { useStore } from '../store'
-import { contractConfig } from '../ContractConfig'
 import { useNotificationStore } from '../atomic/Toaster'
+import { useContractStorage } from './Contracts'
+import { abi } from '../abi'
+import { filterLog } from '../utils'
 
 export default function WaitForPlayer() {
     const { roomData, activeRoomId, acceptOpponent } = useStore()
     const { addNotification } = useNotificationStore()
     const secret = roomData[activeRoomId!]?.secret
     const [copied, setCopied] = useState(false)
+    const { getConfig } = useContractStorage()
+    const config = getConfig()
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'JoinedRoom',
         onLogs: (logs) => {
             for (const log of logs) {
-                if (log.address === contractConfig.address && log.args.roomId === BigInt(activeRoomId!)) {
+                if (filterLog(log.address, log.args.roomId, config?.address, activeRoomId!)) {
                     addNotification('Opponent has joined the room!', 'success')
                     acceptOpponent(log.args.player2 as string)
                 }

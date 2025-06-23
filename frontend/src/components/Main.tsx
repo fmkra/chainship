@@ -1,5 +1,6 @@
 import Button from '../atomic/Button'
 import { useStore } from '../store'
+import { useContractStorage } from './Contracts'
 
 export default function Main() {
     const { setPanel } = useStore()

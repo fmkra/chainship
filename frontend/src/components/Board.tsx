@@ -1,16 +1,19 @@
 import { BOARD_SIZE, ShipConfig, SHIPS_CONFIG, useStore } from '../store'
 import { useState, useMemo } from 'react'
-import { cn, commitBoard, getRandomUint256 } from '../utils'
+import { cn, commitBoard, filterLog, getRandomUint256 } from '../utils'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
-import { contractConfig } from '../ContractConfig'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
+import { useContractStorage } from './Contracts'
+import { abi } from '../abi'
 
 export default function Board() {
     const { roomData, activeRoomId, submitBoard, startGame } = useStore()
     const { addNotification } = useNotificationStore()
     const boardRandomness = useMemo(getRandomUint256, [])
     const room = roomData[activeRoomId!]
+    const { getConfig } = useContractStorage()
+    const config = getConfig()
 
     const { writeContract, status } = useWriteContract({
         mutation: {
@@ -21,11 +24,12 @@ export default function Board() {
     })
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'GameStarted',
         onLogs: (logs) => {
             for (const log of logs) {
-                if (log.address === contractConfig.address && log.args.roomId === BigInt(activeRoomId!)) {
+                if (filterLog(log.address, log.args.roomId, config?.address, activeRoomId!)) {
                     startGame(log.args.startingPlayer!)
                 }
             }
@@ -38,8 +42,13 @@ export default function Board() {
                 status={status}
                 onSubmitBoard={(board) => {
                     submitBoard(boardRandomness, board)
+                    if (!config) {
+                        addNotification('No contract selected', 'error')
+                        return
+                    }
                     writeContract({
-                        ...contractConfig,
+                        ...config,
+                        abi,
                         functionName: 'submitBoard',
                         args: [
                             BigInt(activeRoomId!),

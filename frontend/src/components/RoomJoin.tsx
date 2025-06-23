@@ -1,5 +1,4 @@
 import { useWriteContract, useReadContract } from 'wagmi'
-import { contractConfig } from '../ContractConfig'
 import { useMemo, useState } from 'react'
 import { getCommitPair, keccakHashUint256s, safeBigInt } from '../utils'
 import { useStore } from '../store'
@@ -7,12 +6,16 @@ import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 import Input from '../atomic/Input'
 import { formatEther } from 'viem'
+import { useContractStorage } from './Contracts'
+import { abi } from '../abi'
 
 export default function RoomJoin() {
     const { joinRoom, setPanel } = useStore()
     const { addNotification } = useNotificationStore()
     const [roomSecret, setRoomSecret] = useState<string>('')
     const [randomness, randomnessCommitment] = useMemo(() => getCommitPair(), [])
+    const { getConfig } = useContractStorage()
+    const config = getConfig()
 
     const roomId = useMemo(() => {
         const rs = safeBigInt(roomSecret)
@@ -21,7 +24,8 @@ export default function RoomJoin() {
     }, [roomSecret])
 
     const { data: roomInfo, isLoading } = useReadContract({
-        ...contractConfig,
+        ...config,
+        abi,
         functionName: 'getRoomInfo',
         args: roomId === null ? undefined : [BigInt(roomId)],
     })
@@ -47,8 +51,13 @@ export default function RoomJoin() {
             addNotification('Could not find room or entry fee.', 'error')
             return
         }
+        if (!config) {
+            addNotification('No contract selected', 'error')
+            return
+        }
         writeContract({
-            ...contractConfig,
+            ...config,
+            abi,
             functionName: 'joinRoom',
             args: [BigInt(roomSecret), BigInt(randomnessCommitment)],
             value: entryFeeWei,

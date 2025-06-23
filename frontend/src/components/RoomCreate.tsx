@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react'
 import { useWriteContract } from 'wagmi'
-import { contractConfig } from '../ContractConfig'
 import { getCommitPair, safeParseEther } from '../utils'
 import { useStore } from '../store'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 import Input from '../atomic/Input'
+import { useContractStorage } from './Contracts'
+import { abi } from '../abi'
 
 export default function RoomCreate() {
     const { setPanel, joinRoom } = useStore()
     const { addNotification } = useNotificationStore()
+    const { getConfig } = useContractStorage()
+    const config = getConfig()
 
     const [secret, roomId] = useMemo(() => getCommitPair(BigInt(0)), [])
     const [randomness, randomnessCommitment] = useMemo(() => getCommitPair(), [])
@@ -34,8 +37,13 @@ export default function RoomCreate() {
             addNotification('The fee you entered is not a valid number.', 'error')
             return
         }
+        if (!config) {
+            addNotification('No contract selected', 'error')
+            return
+        }
         writeContract({
-            ...contractConfig,
+            ...config,
+            abi,
             functionName: 'createRoom',
             args: [BigInt(roomId), BigInt(randomnessCommitment)],
             value: feeWei,

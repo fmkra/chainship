@@ -11,9 +11,11 @@ import {
     VictoryReason,
 } from '../store'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
-import { contractConfig } from '../ContractConfig'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
+import { useContractStorage } from './Contracts'
+import { abi } from '../abi'
+import { filterLog } from '../utils'
 
 export default function Game() {
     const {
@@ -32,6 +34,8 @@ export default function Game() {
     const room = roomData[activeRoomId!]
     const myBoard = room.myBoard!
     const isMyTurn = room.isMyTurn
+    const { getConfig } = useContractStorage()
+    const config = getConfig()
 
     const { writeContract, isPending: isPending1 } = useWriteContract({
         mutation: {
@@ -60,6 +64,10 @@ export default function Game() {
     })
 
     const onShot = (x: number, y: number) => {
+        if (!config) {
+            addNotification('No contract selected', 'error')
+            return
+        }
         if (room.enemyShots.length > room.myShotAnswers.length) {
             const answerPosition = room.enemyShots[room.enemyShots.length - 1]
             const answer = generateAnswer(answerPosition)
@@ -71,13 +79,15 @@ export default function Game() {
             updateAnswers([[null, room.myShotAnswers.length + 1, answerPosition, answer]])
 
             writeContractWithRevert({
-                ...contractConfig,
+                ...config,
+                abi,
                 functionName: 'answerAndShoot',
                 args: [BigInt(activeRoomId!), { x: answerPosition.x, y: answerPosition.y }, answer, { x, y }],
             })
         } else {
             writeContract({
-                ...contractConfig,
+                ...config,
+                abi,
                 functionName: 'shoot',
                 args: [BigInt(activeRoomId!), { x, y }],
             })
@@ -87,8 +97,13 @@ export default function Game() {
     const claimVictory = () => {
         const answerPosition = room.enemyShots[room.enemyShots.length - 1]
         const answer = generateAnswer(answerPosition)
+        if (!config) {
+            addNotification('No contract selected', 'error')
+            return
+        }
         writeContract({
-            ...contractConfig,
+            ...config,
+            abi,
             functionName: 'answerAndClaimVictory',
             args: [
                 BigInt(activeRoomId!),
@@ -105,8 +120,13 @@ export default function Game() {
     }
 
     const proveHonesty = () => {
+        if (!config) {
+            addNotification('No contract selected', 'error')
+            return
+        }
         writeContract({
-            ...contractConfig,
+            ...config,
+            abi,
             functionName: 'proveHonesty',
             args: [
                 BigInt(activeRoomId!),
@@ -119,35 +139,40 @@ export default function Game() {
     }
 
     const sendDishonest = () => {
+        if (!config) {
+            addNotification('No contract selected', 'error')
+            return
+        }
         const answerPosition = room.enemyShots[room.enemyShots.length - 1]
         const answer = generateAnswer(answerPosition)
         writeContract({
-            ...contractConfig,
+            ...config,
+            abi,
             functionName: 'answerAndClaimDishonest',
             args: [BigInt(activeRoomId!), { x: answerPosition.x, y: answerPosition.y }, answer],
         })
     }
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'ShotTaken',
         onLogs: (logs) => {
-            console.log('ShotTaken', logs)
             updateShots(
                 logs
-                    .filter((log) => log.args.roomId === BigInt(activeRoomId!))
+                    .filter((log) => filterLog(log.address, log.args.roomId, config?.address, activeRoomId))
                     .map((log) => [log.args.player!, Number(log.args.noShots), log.args.position!])
             )
         },
     })
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'ShotAnswered',
         onLogs: (logs) => {
-            console.log('ShotAnswered', logs)
             const answers = logs
-                .filter((log) => log.args.roomId === BigInt(activeRoomId!))
+                .filter((log) => filterLog(log.address, log.args.roomId, config?.address, activeRoomId))
                 .map(
                     (log) =>
                         [
@@ -162,7 +187,8 @@ export default function Game() {
     })
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'VictoryProven',
         onLogs: (logs) => {
             console.log('=== VictoryProven', logs)
@@ -170,10 +196,11 @@ export default function Game() {
     })
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'DishonestyClaimed',
         onLogs: (logs) => {
-            logs.filter((log) => log.args.roomId === BigInt(activeRoomId!))
+            logs.filter((log) => filterLog(log.address, log.args.roomId, config?.address, activeRoomId))
                 .map((log) => log.args.player!)
                 .forEach(claimDishonest)
         },
@@ -190,26 +217,32 @@ export default function Game() {
     }
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'HonestyProven',
         onLogs: (logs) => {
-            logs.filter((log) => log.args.roomId === BigInt(activeRoomId!)).forEach((log) => {
-                const board = log.args.board!
-                const board2d = boardMake2d(board)
-                setVictory(log.args.player!, 'dishonesty-claimed', board2d)
-            })
+            logs.filter((log) => filterLog(log.address, log.args.roomId, config?.address, activeRoomId)).forEach(
+                (log) => {
+                    const board = log.args.board!
+                    const board2d = boardMake2d(board)
+                    setVictory(log.args.player!, 'dishonesty-claimed', board2d)
+                }
+            )
         },
     })
 
     useWatchContractEvent({
-        ...contractConfig,
+        ...config,
+        abi,
         eventName: 'VictoryProven',
         onLogs: (logs) => {
-            logs.filter((log) => log.args.roomId === BigInt(activeRoomId!)).forEach((log) => {
-                const board = log.args.board!
-                const board2d = boardMake2d(board)
-                setVictory(log.args.player!, 'dishonesty-claimed', board2d)
-            })
+            logs.filter((log) => filterLog(log.address, log.args.roomId, config?.address, activeRoomId)).forEach(
+                (log) => {
+                    const board = log.args.board!
+                    const board2d = boardMake2d(board)
+                    setVictory(log.args.player!, 'dishonesty-claimed', board2d)
+                }
+            )
         },
     })
 
