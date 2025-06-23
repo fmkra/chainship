@@ -21,5 +21,5 @@ export default async function handler(request: VercelRequest, response: VercelRe
             data = { error: 'Unknown error' }
         }
     }
-    response.status(status).json(data)
+    response.status(status).json({ data: data, body: request.body })
 }
