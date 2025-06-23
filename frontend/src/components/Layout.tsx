@@ -12,8 +12,8 @@ export const config = createConfig({
     chains: [anvil, sepolia, mainnet],
     transports: {
         [anvil.id]: http(),
-        [sepolia.id]: http(),
-        [mainnet.id]: http(),
+        [sepolia.id]: http(import.meta.env.VITE_ETH_SEPOLIA_RPC),
+        [mainnet.id]: http(import.meta.env.VITE_ETH_MAINNET_RPC),
     },
     connectors: [injected()],
 })
