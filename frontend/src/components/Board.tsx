@@ -1,4 +1,4 @@
-import { BOARD_SIZE, ShipConfig, SHIPS_CONFIG, useStore } from '../store'
+import { BOARD_SIZE, ShipConfig, SHIPS_CONFIG, useAppState } from '../app-state'
 import { useState, useMemo } from 'react'
 import { cn, commitBoard, filterLog, getRandomUint256 } from '../utils'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
@@ -8,7 +8,7 @@ import { useContractStorage } from './Contracts'
 import { abi } from '../abi'
 
 export default function Board() {
-    const { roomData, activeRoomId, submitBoard, startGame } = useStore()
+    const { roomData, activeRoomId, submitBoard, startGame } = useAppState()
     const { addNotification } = useNotificationStore()
     const boardRandomness = useMemo(getRandomUint256, [])
     const room = roomData[activeRoomId!]

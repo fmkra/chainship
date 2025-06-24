@@ -5,11 +5,11 @@ import {
     ShotResult,
     ShotResultInt,
     ShotResultType,
-    useStore,
+    useAppState,
     OptionalPlayer,
     OptionalPlayerInt,
     VictoryReason,
-} from '../store'
+} from '../app-state'
 import { useWatchContractEvent, useWriteContract } from 'wagmi'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
@@ -29,7 +29,7 @@ export default function Game() {
         leaveRoom,
         claimDishonest,
         setVictory,
-    } = useStore()
+    } = useAppState()
     const { addNotification } = useNotificationStore()
     const room = roomData[activeRoomId!]
     const myBoard = room.myBoard!

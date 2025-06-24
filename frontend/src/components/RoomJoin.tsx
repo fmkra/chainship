@@ -1,7 +1,7 @@
 import { useWriteContract, useReadContract } from 'wagmi'
 import { useMemo, useState } from 'react'
 import { getCommitPair, keccakHashUint256s, safeBigInt } from '../utils'
-import { useStore } from '../store'
+import { useAppState } from '../app-state'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 import Input from '../atomic/Input'
@@ -10,11 +10,11 @@ import { useContractStorage } from './Contracts'
 import { abi } from '../abi'
 
 export default function RoomJoin() {
-    const { joinRoom, setPanel } = useStore()
+    const { joinRoom, setPanel } = useAppState()
     const { addNotification } = useNotificationStore()
     const [roomSecret, setRoomSecret] = useState<string>('')
     const [randomness, randomnessCommitment] = useMemo(() => getCommitPair(), [])
-    const { getConfig } = useContractStorage()
+    const { getConfig, selectedContractId } = useContractStorage()
     const config = getConfig()
 
     const roomId = useMemo(() => {
@@ -32,12 +32,13 @@ export default function RoomJoin() {
     const entryFeeWei = roomInfo?.[1]
     const opponent = roomInfo?.[2]
 
+    const [submitContractId, setSubmitContractId] = useState<string>('')
     const { isPending, writeContract } = useWriteContract({
         mutation: {
             onSuccess: () => {
                 addNotification('Joining room transaction sent!', 'info')
                 const entryFeeEth = formatEther(entryFeeWei!)
-                joinRoom('board', roomId!, opponent!, entryFeeEth, randomness, roomSecret)
+                joinRoom(submitContractId, 'board', roomId!, opponent!, entryFeeEth, randomness, roomSecret)
             },
             onError: (error) => {
                 const shortMessage = error.message.split('\n')[0]
@@ -51,10 +52,11 @@ export default function RoomJoin() {
             addNotification('Could not find room or entry fee.', 'error')
             return
         }
-        if (!config) {
+        if (!config || !selectedContractId) {
             addNotification('No contract selected', 'error')
             return
         }
+        setSubmitContractId(selectedContractId)
         writeContract({
             ...config,
             abi,

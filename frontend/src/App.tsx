@@ -1,4 +1,4 @@
-import { State, useStore } from './store'
+import { State, useAppState } from './app-state'
 import RoomCreate from './components/RoomCreate'
 import RoomJoin from './components/RoomJoin'
 import Layout from './components/Layout'
@@ -8,7 +8,7 @@ import Board from './components/Board'
 import Game from './components/Game'
 
 function App() {
-    const { panel } = useStore()
+    const { panel } = useAppState()
 
     const stateComponents = {
         select: <Main />,

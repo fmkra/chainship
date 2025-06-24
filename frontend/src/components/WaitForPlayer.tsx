@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useWatchContractEvent } from 'wagmi'
-import { useStore } from '../store'
+import { useAppState } from '../app-state'
 import { useNotificationStore } from '../atomic/Toaster'
 import { useContractStorage } from './Contracts'
 import { abi } from '../abi'
 import { filterLog } from '../utils'
 
 export default function WaitForPlayer() {
-    const { roomData, activeRoomId, acceptOpponent } = useStore()
+    const { roomData, activeRoomId, acceptOpponent } = useAppState()
     const { addNotification } = useNotificationStore()
     const secret = roomData[activeRoomId!]?.secret
     const [copied, setCopied] = useState(false)

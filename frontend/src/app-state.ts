@@ -54,12 +54,14 @@ export interface State {
     roomData: Record<
         string,
         {
+            contractId: string
             entryFee: string
             opponent: string
             randomness: string
             secret: string
             myBoard?: boolean[][]
             myBoardRandomness?: string
+            startingPlayer?: string
             isMyTurn: boolean
             myShots: ShotCoordinate[]
             enemyShots: ShotCoordinate[]
@@ -77,6 +79,7 @@ export interface Actions {
     setPanel: (panel: State['panel']) => void
     leaveRoom: () => void
     joinRoom: (
+        contractId: string,
         panel: State['panel'],
         roomId: string,
         opponent: string,
@@ -84,6 +87,7 @@ export interface Actions {
         randomness: string,
         secret: string
     ) => void
+    rejoin: (roomId: string) => void
     acceptOpponent: (address: string) => void
     submitBoard: (boardRandomness: string, board: boolean[][]) => void
     startGame: (startingPlayer: string) => void
@@ -96,13 +100,13 @@ export interface Actions {
     setVictory: (player: string, victoryReason: 'dishonesty-claimed' | 'victory', board: boolean[][]) => void
 }
 
-export const useStore = create<State & Actions>()(
+export const useAppState = create<State & Actions>()(
     persist(
         (set, get) => ({
             panel: 'select',
             roomData: {},
             setPanel: (panel) => set((state) => ({ ...state, panel })),
-            joinRoom: (panel: State['panel'], roomId, opponent, entryFee, randomness, secret) =>
+            joinRoom: (contractId, panel: State['panel'], roomId, opponent, entryFee, randomness, secret) =>
                 set((state) => ({
                     ...state,
                     panel: panel,
@@ -110,6 +114,7 @@ export const useStore = create<State & Actions>()(
                     roomData: {
                         ...state.roomData,
                         [roomId]: {
+                            contractId,
                             randomness,
                             opponent,
                             entryFee,
@@ -125,6 +130,20 @@ export const useStore = create<State & Actions>()(
                         },
                     },
                 })),
+            rejoin: (roomId) =>
+                set((state) => {
+                    const room = state.roomData[roomId]
+                    return {
+                        ...state,
+                        panel:
+                            room.opponent === ''
+                                ? 'waitForPlayer'
+                                : room.startingPlayer === undefined
+                                ? 'board'
+                                : 'game',
+                        activeRoomId: roomId,
+                    }
+                }),
             acceptOpponent: (address) =>
                 set((state) => ({
                     ...state,
@@ -154,6 +173,7 @@ export const useStore = create<State & Actions>()(
                         ...state.roomData,
                         [state.activeRoomId!]: {
                             ...state.roomData[state.activeRoomId!],
+                            startingPlayer,
                             isMyTurn: startingPlayer !== state.roomData[state.activeRoomId!].opponent,
                         },
                     },
@@ -277,7 +297,6 @@ export const useStore = create<State & Actions>()(
                     ...state,
                     panel: 'select',
                     activeRoomId: undefined,
-                    roomData: {},
                 })),
             claimDishonest: (player) => {
                 const s = get()

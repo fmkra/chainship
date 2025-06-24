@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useWriteContract } from 'wagmi'
 import { getCommitPair, safeParseEther } from '../utils'
-import { useStore } from '../store'
+import { useAppState } from '../app-state'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 import Input from '../atomic/Input'
@@ -9,9 +9,9 @@ import { useContractStorage } from './Contracts'
 import { abi } from '../abi'
 
 export default function RoomCreate() {
-    const { setPanel, joinRoom } = useStore()
+    const { setPanel, joinRoom } = useAppState()
     const { addNotification } = useNotificationStore()
-    const { getConfig } = useContractStorage()
+    const { getConfig, selectedContractId } = useContractStorage()
     const config = getConfig()
 
     const [secret, roomId] = useMemo(() => getCommitPair(BigInt(0)), [])
@@ -19,11 +19,12 @@ export default function RoomCreate() {
     const [fee, setFee] = useState('0.1')
     const feeWei = safeParseEther(fee)
 
+    const [submitContractId, setSubmitContractId] = useState<string>('')
     const { isPending, writeContract } = useWriteContract({
         mutation: {
             onSuccess: () => {
                 addNotification('Room creation transaction sent!', 'info')
-                joinRoom('waitForPlayer', roomId, '', fee, randomness, secret)
+                joinRoom(submitContractId, 'waitForPlayer', roomId, '', fee, randomness, secret)
             },
             onError: (error) => {
                 const shortMessage = error.message.split('\n')[0]
@@ -37,10 +38,11 @@ export default function RoomCreate() {
             addNotification('The fee you entered is not a valid number.', 'error')
             return
         }
-        if (!config) {
+        if (!config || !selectedContractId) {
             addNotification('No contract selected', 'error')
             return
         }
+        setSubmitContractId(selectedContractId)
         writeContract({
             ...config,
             abi,

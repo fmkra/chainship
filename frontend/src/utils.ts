@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { ShotCoordinate, ShotResultInt, ShotResultType } from './store'
+import { ShotCoordinate, ShotResultInt, ShotResultType } from './app-state'
 import clsx, { ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 

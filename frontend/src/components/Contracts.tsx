@@ -10,6 +10,7 @@ export const CHAINS = {
     1: 'Ethereum Mainnet',
     11155111: 'Ethereum Sepolia',
     31337: 'Localhost',
+    123123: 'Filip Local Node',
 }
 
 const defaultChainId = 1 as ChainId
@@ -18,14 +19,19 @@ type ChainId = keyof typeof CHAINS
 
 const defaultContracts = [
     {
-        id: '1',
+        id: crypto.randomUUID(),
         chainId: 31337,
         address: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
     },
     {
-        id: '2',
+        id: crypto.randomUUID(),
         chainId: 11155111,
         address: '0xb9b4c951226C815217fab93f92cE16080D93cf1e',
+    },
+    {
+        id: crypto.randomUUID(),
+        chainId: 123123,
+        address: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
     },
 ] satisfies Contract[]
 

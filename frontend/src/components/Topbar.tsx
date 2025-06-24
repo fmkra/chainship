@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { config } from './Layout'
-import { useStore } from '../store'
+import { useAppState } from '../app-state'
 import Button from '../atomic/Button'
 import { useNotificationStore } from '../atomic/Toaster'
 import { CHAINS, Settings, useContractStorage } from './Contracts'
 import { shorten } from '../utils'
 
 export const Topbar = () => {
-    const { panel, leaveRoom } = useStore()
+    const { panel, leaveRoom } = useAppState()
     const [isConnected, setIsConnected] = useState<boolean>(false)
     const [address, setAddress] = useState<string>('')
     const { addNotification } = useNotificationStore()
