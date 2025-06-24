@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.28;
 
-// Uncomment this line to use console.log
-import "hardhat/console.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-abstract contract Chainship {
+abstract contract Chainship is Ownable, ReentrancyGuard {
     type RoomId is uint256;
 
     uint256 public immutable CONTRACT_SEED;
@@ -98,7 +98,7 @@ abstract contract Chainship {
         Sunk
     }
 
-    constructor(uint256 contractSeed, uint256 deadlineBlockTime) {
+    constructor(address owner, uint256 contractSeed, uint256 deadlineBlockTime) Ownable(owner) {
         CONTRACT_SEED = contractSeed;
         DEADLINE_BLOCK_TIME = deadlineBlockTime;
     }
@@ -558,50 +558,15 @@ abstract contract Chainship {
         emit IdleClaimed(roomId, msg.sender);
     }
 
-    function _receivePrize(RoomData storage room, uint8 winnerPlayerNumber) internal {
-        // TODO: Fix reentrancy attack
+    function _receivePrize(RoomData storage room, uint8 winnerPlayerNumber) internal nonReentrant {
         address winnerAddress = room.players[winnerPlayerNumber].playerAddress;
         uint256 prize = 2 * room.entryFee - calculateCommission(room.entryFee);
         payable(winnerAddress).transfer(prize);
         emit PrizeReceived(winnerAddress, prize);
     }
 
-    // TODO: Get funds from the contract
-}
-
-abstract contract ChainshipWithMulticall is Chainship {
-    constructor(uint256 contractSeed, uint256 deadlineBlockTime) Chainship(contractSeed, deadlineBlockTime) {}
-
-    function answerAndShoot(RoomId roomId, Position calldata answerPosition, Answer answer, Position calldata shootPosition) public {
-        answerShot(roomId, answerPosition, answer);
-        shoot(roomId, shootPosition);
-    }
-
-    function answerAndClaimVictory(RoomId roomId, Position calldata answerPosition, Answer answer, uint256 boardRandomness, bool[] calldata board, Position[] calldata enemyShots, Answer[] calldata myAnswers, Position[] calldata myShots, Answer[] calldata enemyAnswers) public {
-        answerShot(roomId, answerPosition, answer);
-        proveVictory(roomId, boardRandomness, board, enemyShots, myAnswers, myShots, enemyAnswers);
-    }
-
-    function answerAndClaimDishonest(RoomId roomId, Position calldata answerPosition, Answer answer) public {
-        answerShot(roomId, answerPosition, answer);
-        claimDishonest(roomId);
-    }
-}
-
-contract TestContract is ChainshipWithMulticall {
-    constructor(uint256 contractSeed) ChainshipWithMulticall(contractSeed, 10) {}
-    uint256 public x;
-
-    function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
-        // around 0.02 USD + 0.1% of entry fee
-        return 10000 gwei + entryFee / 1000;
-    }
-}
-
-contract ChainshipNoFee is ChainshipWithMulticall {
-    constructor(uint256 contractSeed) ChainshipWithMulticall(contractSeed, 10 * 60 / 12) {} // 10 minutes
-
-    function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
-        return 0;
+    function withdrawFunds(uint256 amount) public nonReentrant onlyOwner {
+        require(address(this).balance >= amount, "Not enough funds");
+        payable(owner()).transfer(amount);
     }
 }

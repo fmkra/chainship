@@ -4,9 +4,10 @@ pragma solidity ^0.8.28;
 import { Chainship } from '../Chainship.sol';
 
 contract TestInternals is Chainship {
-    constructor() Chainship(0x0, 10) {}
+    constructor() Chainship(address(this), 0, 10) {}
 
     function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
+        require(entryFee > 0, "Entry fee must be greater than 0");
         return 0;
     }
 

@@ -18,8 +18,7 @@ pnpm dev
 ## TODOs:
 
 -   Update architecture file
--   Automatic deployments
--   Frontend should display list of rooms that player has ever joined and their statuses
 -   Claim idle handling on frontend side
 -   More tests for contracts
--   Playwright tests
+
+[Contract on sepolia](https://sepolia.etherscan.io/address/0xb9b4c951226C815217fab93f92cE16080D93cf1e#code)
