@@ -48,4 +48,4 @@ jobs:
               run: pnpm compile
 
             - name: Deploy
-              run: npx hardhat ignition deploy ignition/modules/Chainship.ts --network localhost
+              run: npx hardhat ignition deploy ignition/modules/Chainship.ts --network deployment
