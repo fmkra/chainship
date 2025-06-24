@@ -23,6 +23,11 @@ const config: HardhatUserConfig = {
             accounts: [process.env.PRIVATE_KEY as string],
             chainId: 11155111,
         },
+        deployment: {
+            url: process.env.RPC_URL as string,
+            accounts: [process.env.PRIVATE_KEY as string],
+            chainId: 123123,
+        },
     },
     etherscan: {
         apiKey: {
