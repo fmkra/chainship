@@ -14,7 +14,7 @@ export default function Main() {
             </p>
 
             <div className="mt-8 flex flex-col gap-4">
-                <Button variant="blue" onClick={() => setPanel('create')}>
+                <Button variant="blue" onClick={() => setPanel('create')} id="create-room-button">
                     Create a New Room
                 </Button>
                 <Button variant="green" onClick={() => setPanel('join')}>

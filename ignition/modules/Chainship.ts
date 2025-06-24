@@ -4,7 +4,7 @@
 import { buildModule } from '@nomicfoundation/hardhat-ignition/modules'
 
 const ChainshipModule = buildModule('ChainshipModule', (m) => {
-    const chainship = m.contract('ChainshipImplementation', [0])
+    const chainship = m.contract('ChainshipNoFee', [0])
 
     return { chainship }
 })

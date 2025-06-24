@@ -14,15 +14,6 @@ export default defineWalletSetup(PASSWORD, async (context, walletPage) => {
     // Import the wallet using the seed phrase
     await metamask.importWallet(SEED_PHRASE)
 
-    await metamask.addNetwork({
-        name: 'Local',
-        rpcUrl: 'http://localhost:8545',
-        chainId: 31337,
-        symbol: 'ETH',
-        blockExplorerUrl: 'http://localhost:8545',
-    })
-    await metamask.switchNetwork('Local')
-
     // Additional setup steps can be added here, such as:
     // - Adding custom networks
     // - Importing tokens

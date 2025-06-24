@@ -598,11 +598,10 @@ contract TestContract is ChainshipWithMulticall {
     }
 }
 
-contract ChainshipImplementation is ChainshipWithMulticall {
+contract ChainshipNoFee is ChainshipWithMulticall {
     constructor(uint256 contractSeed) ChainshipWithMulticall(contractSeed, 10 * 60 / 12) {} // 10 minutes
 
     function calculateCommission(uint256 entryFee) public pure override returns (uint256) {
-        // around 0.02 USD + 0.1% of entry fee
-        return 10000 gwei + entryFee / 1000;
+        return 0;
     }
 }

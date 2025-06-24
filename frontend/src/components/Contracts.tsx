@@ -119,13 +119,13 @@ export const useContractStorage = create<ContractStorageState & ContractStorageA
     )
 )
 
-interface ChainFormProps {
+interface ContractFormProps {
     onSave: (contract: Omit<Contract, 'id'>) => void
     onCancel: () => void
     contract?: Contract
 }
 
-const ChainForm = ({ onSave, onCancel, contract }: ChainFormProps) => {
+const ContractForm = ({ onSave, onCancel, contract }: ContractFormProps) => {
     const [chainId, setChainId] = useState<ChainId>(contract?.chainId ?? defaultChainId)
     const [contractAddress, setContractAddress] = useState<string>(contract?.address || '')
     const [error, setError] = useState<string>('')
@@ -182,7 +182,7 @@ const ChainForm = ({ onSave, onCancel, contract }: ChainFormProps) => {
     )
 }
 
-const ChainList = () => {
+const ContractList = () => {
     const { contracts, selectedContractId, selectContract, deleteContract, addContract, updateContract } =
         useContractStorage()
     const [isAdding, setIsAdding] = useState<boolean>(false)
@@ -211,10 +211,10 @@ const ChainList = () => {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" id="contract-list">
             {contracts.map((contract) =>
                 editingChainId === contract.id ? (
-                    <ChainForm
+                    <ContractForm
                         key={contract.id}
                         contract={contract}
                         onSave={handleSave}
@@ -259,7 +259,7 @@ const ChainList = () => {
                 )
             )}
             {isAdding ? (
-                <ChainForm onSave={handleSave} onCancel={() => setIsAdding(false)} />
+                <ContractForm onSave={handleSave} onCancel={() => setIsAdding(false)} />
             ) : (
                 <Button variant="green" onClick={() => setIsAdding(true)} className="w-full">
                     Add New Contract
@@ -269,7 +269,7 @@ const ChainList = () => {
     )
 }
 
-export const ChainSettingsModal = () => {
+export const ContractSettingsModal = () => {
     const { isModalOpen, closeModal, getSelectedContract } = useContractStorage()
     if (!isModalOpen) return null
     const canClose = !!getSelectedContract()
@@ -280,6 +280,7 @@ export const ChainSettingsModal = () => {
                     <h2 className="text-xl font-bold">Manage Contracts</h2>
                     <Button
                         variant="gray"
+                        id="contract-settings-close"
                         onClick={closeModal}
                         disabled={!canClose}
                         title={canClose ? 'Close' : 'You must select a chain'}
@@ -288,7 +289,7 @@ export const ChainSettingsModal = () => {
                     </Button>
                 </div>
                 <div className="p-6 overflow-y-auto flex-grow">
-                    <ChainList />
+                    <ContractList />
                 </div>
                 {!canClose && (
                     <div className="p-4 bg-yellow-100 border-t border-yellow-300 text-center text-yellow-800 font-semibold">

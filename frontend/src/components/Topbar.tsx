@@ -54,7 +54,10 @@ export const Topbar = () => {
             ) : (
                 <>
                     <p id="account" className="text-sm font-medium text-slate-700 truncate">
-                        Connected: <span className="font-mono">{address}</span>
+                        Connected:{' '}
+                        <span className="font-mono" id="account-address">
+                            {shorten(address)}
+                        </span>
                     </p>
                     <Button variant="red" onClick={disconnectWallet}>
                         Disconnect
@@ -63,8 +66,12 @@ export const Topbar = () => {
             )}
             {selectedContract && (
                 <div className="text-sm text-center">
-                    <p className="font-semibold text-slate-700">{CHAINS[selectedContract.chainId]}</p>
-                    <p className="text-xs text-slate-500 font-mono">{shorten(selectedContract.address)}</p>
+                    <p className="font-semibold text-slate-700" id="contract-chain">
+                        {CHAINS[selectedContract.chainId]}
+                    </p>
+                    <p className="text-xs text-slate-500 font-mono" id="contract-address">
+                        {shorten(selectedContract.address)}
+                    </p>
                 </div>
             )}
             <Settings />
