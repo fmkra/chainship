@@ -246,8 +246,6 @@ abstract contract Chainship is Ownable, ReentrancyGuard {
     }
 
     function shoot(RoomId roomId, Position calldata position) public {
-        // TODO: Maybe to prevent user from accidentally sending answer for other shot,
-        // TODO: provide noShots as an argument and check against saved value?
         RoomData storage room = rooms[roomId];
         require(room.status == RoomStatus.Shooting, "Room is not in the shooting state");
 
@@ -274,7 +272,6 @@ abstract contract Chainship is Ownable, ReentrancyGuard {
     }
 
     function answerShot(RoomId roomId, Position calldata position, Answer answer) public {
-        // TODO: Same as for `shoot` function, maybe to provide noShots as an argument?
         RoomData storage room = rooms[roomId];
         require(room.status == RoomStatus.Answering, "Room is not in the answering state");
 

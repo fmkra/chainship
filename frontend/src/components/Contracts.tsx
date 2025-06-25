@@ -26,7 +26,7 @@ const defaultContracts = [
     {
         id: crypto.randomUUID(),
         chainId: 11155111,
-        address: '0xb9b4c951226C815217fab93f92cE16080D93cf1e',
+        address: '0x0058F477eF9c4d4EE3992078ec8cFe2Dd8a7dE3f',
     },
 ] satisfies Contract[]
 
